@@ -1,0 +1,181 @@
+# Packliste
+
+Packliste für die Familie Hofmann. Eine Reise wird angelegt mit **Art, Anzahl Nächten, Jahreszeit, Aktivitäten und wer mitkommt** – die Liste entsteht daraus automatisch aus der Stammliste.
+
+- Kein Build-Schritt, kein Framework: HTML, CSS und JavaScript als ES-Module
+- PWA – auf dem iPhone über *Teilen → Zum Home-Bildschirm* wie eine echte App
+- Funktioniert offline, Änderungen werden nachgetragen
+- Live-Sync zwischen mehreren Geräten
+- Mengen rechnen sich aus den Nächten: 1 Nacht → 2 Unterhosen, 10 Nächte → 11, in Lenz mit Waschmaschine → 8
+- Zwei Gliederungsebenen: **nach Person** mit Bereichen darunter (Christoph › Velo › Trikot kurz), oder **nach Bereich** mit Personen darunter
+- Text-Export zum Weiterschicken
+
+## Aufbau
+
+### Reisen
+
+Startbildschirm ist die Liste der Reisen mit Packstand. Es gibt keine automatisch angelegte Reise – man legt sie an, sie bleibt in der Liste und lässt sich später duplizieren oder archivieren.
+
+Ein Tipp auf die Karte öffnet die Packliste. Alles Weitere – Angaben ändern, duplizieren, archivieren, löschen – steckt hinter dem **⋯** in der Ecke der Karte.
+
+Eine Reise hat: Name, **Art**, **Anzahl Nächte**, **Jahreszeit**, **Aktivitäten**, **wer mitkommt**. Kein Datum, kein Ziel.
+
+### Die drei Reisearten
+
+| Art | Was daraus folgt |
+| --- | --- |
+| **Basislager 4.0** (Wohnmobil) | Camper-Bereich, eigene Küche muss bestückt werden, Handtücher und Bettzeug mit, Region wählbar |
+| **Lenz** | Bettwäsche, Handtücher, Küche, Waschmaschine und Kinderspielzeug sind vor Ort – all das fällt weg. Keine Region |
+| **Hotel** | Keine Küche, Handtücher vor Ort, Region wählbar |
+
+Die Region (Schweiz / Schengen / Europa / Fernreise) erscheint nur bei Basislager und Hotel und steuert Reisepass, Fremdwährung, Reiseadapter und Roaming.
+
+### Personen
+
+Christoph, Debora, Laurin und Noemi sind fest angelegt. Pro Reise wird angekreuzt, wer mitkommt – wer nicht mitkommt, dessen Sachen fallen weg, und auch Gemeinsames wie der Molton oder die Bikes verschwinden, wenn niemand dabei ist, der es braucht.
+
+### Stammliste
+
+Die Vorlage, aus der jede Reise entsteht – vollständig in der App bearbeitbar, kein Umweg über den Code. Beim Anlegen einer Reise wird der aktuelle Stand hineinkopiert. Änderst du die Stammliste später, bleibt eine laufende Reise unberührt; in ihr erscheint ein Hinweis mit *Übernehmen*.
+
+Pro Eintrag lässt sich festlegen:
+
+| Feld | Bedeutung |
+| --- | --- |
+| Was | Bezeichnung |
+| Bereich | Kleidung, Velo, Küche … – frei anlegbar, siehe unten |
+| Für wen | Personen ankreuzen. Keine ausgewählt = ein gemeinsamer Eintrag, mehrere = ein eigener Eintrag pro Person |
+| Menge | Feste Stückzahl, oder pro Nacht mit Zuschlag und Obergrenze (auch eine eigene Grenze, wenn eine Waschmaschine da ist) |
+| Nur bei diesen Reisearten | leer = bei allen |
+| Nur bei diesen Aktivitäten | leer = immer |
+| Nur in diesen Jahreszeiten | leer = immer |
+| Nur in diesen Regionen | leer = überall |
+| Nur wenn mit dabei | z.B. „Crafty Christoph" nur wenn Christoph mitkommt |
+| Erst ab Anzahl Nächten | z.B. Packwürfel ab 6 Nächten |
+| Inhalt | Macht den Eintrag zum **Behälter**: eine Zeile pro Teil, jede mit eigener Menge |
+| Notiz | Kleingedrucktes, z.B. „nur wenn richtig gekocht wird" |
+
+### Bereiche und Aktivitäten
+
+Beides ist in der Stammliste über *Bereiche verwalten* und *Aktivitäten verwalten* bearbeitbar – anlegen, umbenennen, löschen. Ein Bereich hat zusätzlich ein Symbol, wählbar aus dem Icon-Satz.
+
+Beim Löschen wird nichts stillschweigend mitgerissen: Ein Bereich mit Einträgen fragt, wohin sie sollen, und verschiebt sie. Eine Aktivität wird aus allen Stammlisten-Einträgen und allen Reisen herausgenommen; die Einträge selbst bleiben und gelten dann unabhängig von Aktivitäten. Die Anzahl daran hängender Einträge steht jeweils daneben.
+
+### Behälter
+
+Ein Necessaire ist kein Ding, sondern sechs. Trägt ein Eintrag einen **Inhalt**, wird er zum Behälter: Er erscheint als fette Zeile mit Zähler (`2/6`), darunter eingerückt seine Teile – jedes einzeln abhakbar. Das Kästchen am Behälter hakt alles auf einmal ab oder wieder auf, ein Tipp auf den Namen klappt zu und auf.
+
+Der Pfeil zum Auf- und Zuklappen steht beim Namen, damit rechts die gewohnte Stift-Spalte frei bleibt: Behälter lassen sich genauso bearbeiten wie alles andere. Der Stift öffnet dabei einen eigenen Dialog mit dem Inhalt zum Abhaken, statt der Mengenfelder, die für einen Behälter keinen Sinn ergeben.
+
+Jedes Teil hat seine eigene Menge, entweder fest oder **pro Nacht**. Damit lässt sich „Pantoprazol 1 pro Nacht" abbilden: bei 5 Nächten stehen 5 auf der Liste, bei 12 Nächten 12. Der Behälter selbst hat keine Menge mehr, sobald er Inhalt hat – die Felder verschwinden dann.
+
+Gezählt werden die Teile, nicht der Behälter. Die IDs der Teile hängen am Text, nicht an der Position: Trägst du in der Stammliste ein Teil nach, bleibt in laufenden Reisen abgehakt, was schon abgehakt war.
+
+Behälter im Ausgangsstand: beide Necessaires, Medis, Kleinzeug, Salben, Täschli, Rucksack, Sonnenzeug, Gewürzkiste, Skiausrüstung, Kletterausrüstung, Malzeug, Draussen-Spielzeug, Velowerkzeug und Putzzeug.
+
+Zwischen den Bedingungen gilt UND, innerhalb einer genügt eines: *Arten: Basislager + Lenz, Aktivitäten: MTB* heisst „bei Basislager oder Lenz, aber nur wenn MTB angehakt ist".
+
+Abgehakt wird nur über das Kästchen, nie über den Text – beim Scrollen verhakt man sich sonst laufend etwas aus Versehen.
+
+Beim Hinzufügen eines Eintrags in einer laufenden Reise gibt es ein Häkchen *Auch in die Stammliste* – so wächst die Vorlage mit.
+
+Beim Neuberechnen bleibt Handarbeit erhalten: Abgehaktes bleibt abgehakt, geänderte Mengen werden nicht überschrieben, gelöschte Einträge kommen nicht zurück (*Gelöschte zurück* macht das rückgängig).
+
+Der Ausgangsstand steht in [`src/seed.js`](src/seed.js) und wird nur beim ersten Start gelesen – oder über *Stammliste zurücksetzen*.
+
+### Gliederung der Liste
+
+Zwei Ebenen, je nach Ansicht:
+
+| Ansicht | Aussen | Innen |
+| --- | --- | --- |
+| Nach Person | Christoph, Debora, Laurin, Noemi, dann Gemeinsames nach Bereich | Bereich, z.B. Velo |
+| Nach Bereich | Kleidung, Velo, Küche … | Person |
+
+Gibt es nur eine Unterebene, entfällt deren Überschrift – Küche und Camper enthalten nur Gemeinsames und bleiben deshalb flach.
+
+## Gestaltung
+
+Angelehnt an die Bedienlogik grosser Mobility-Apps: monochrom schwarz/weiss, grosse linksbündige Titel, Zeilen mit Icon-Kachel, Bottom Sheets mit fixiertem Hauptknopf unten, Chips statt Auswahlfelder, grosse Flächen zum Antippen. Hell und dunkel folgen dem Systemthema. Eigene Strich-Icons in [`src/icons.js`](src/icons.js), keine Emoji.
+
+## Lokal ausprobieren
+
+ES-Module brauchen einen echten HTTP-Server, `file://` genügt nicht:
+
+```bash
+python3 dev-server.py
+```
+
+Dann `http://localhost:4173` öffnen. Der Port lässt sich mitgeben: `python3 dev-server.py 8000`.
+
+Zum Testen auf dem Handy im gleichen WLAN:
+
+```bash
+python3 dev-server.py 4173 --lan
+```
+
+Der Server nennt beim Start die Adresse, die du auf dem Handy eingibst. Ohne HTTPS registriert iOS allerdings keinen Service Worker – der Offline-Betrieb und die Installation als App gehen erst über GitHub Pages.
+
+`python3 -m http.server` täte es normalerweise auch, scheitert aber, sobald der Prozess kein Leserecht auf das Arbeitsverzeichnis hat – das Modul ruft `os.getcwd()` schon beim Laden auf. `dev-server.py` nimmt stattdessen sein eigenes Verzeichnis und schickt zusätzlich `Cache-Control: no-store`, damit Änderungen an den Modulen sofort sichtbar sind.
+
+## Auf GitHub Pages veröffentlichen
+
+1. Repository auf GitHub anlegen, z.B. `packliste`.
+2. Hochladen:
+
+```bash
+git init && git add -A && git commit -m "Packliste" && git branch -M main
+```
+
+```bash
+git remote add origin https://github.com/DEIN-NAME/packliste.git && git push -u origin main
+```
+
+3. **Settings → Pages**: *Source* auf `Deploy from a branch`, Branch `main`, Ordner `/ (root)`.
+4. Nach ein bis zwei Minuten läuft die App unter `https://DEIN-NAME.github.io/packliste/`.
+
+GitHub Pages ist bei **öffentlichen** Repositories gratis, bei privaten braucht es GitHub Pro. Öffentlich heisst: der Code ist sichtbar – die Liste selbst nicht, die liegt im Browser bzw. in deiner Supabase-Datenbank.
+
+Was dabei einsehbar wäre: der Ausgangsstand in `src/seed.js`, inklusive Namen und Einträgen wie *Rotauf Jacke* oder *Medis: Pantoprazol*. Wenn das nicht sein soll: privates Repo mit GitHub Pro, oder die persönlichen Zeilen aus `seed.js` entfernen und stattdessen in der App über den Stammlisten-Editor anlegen – die landen nur in der Datenbank.
+
+## Live-Sync einrichten (einmalig, ca. 5 Minuten)
+
+1. Auf [supabase.com](https://supabase.com) ein Projekt anlegen (Gratis-Tarif genügt).
+2. **SQL Editor** öffnen, [`supabase/schema.sql`](supabase/schema.sql) einfügen und ausführen.
+3. **Project Settings → API**: *Project URL* und *anon / publishable key* kopieren.
+4. In der App oben rechts auf das Sync-Symbol, beides eintragen, *Speichern & verbinden*.
+5. Den **Familien-Code** kopieren und auf dem zweiten Gerät unter *Code vom anderen Gerät* eintragen. Damit übernimmt es die Stammliste und alle Reisen.
+
+URL und Key bleiben **lokal im Browser** (`localStorage`) und landen nicht im Repository. Jedes Gerät braucht sie einmal.
+
+### Wie wird zusammengeführt?
+
+Nicht „wer zuletzt speichert, gewinnt" – das würde Änderungen überschreiben. Jeder Eintrag trägt einen eigenen Zeitstempel, zusammengeführt wird pro Eintrag. Hakt eine Person die Zahnbürste ab, während die andere die Menge der Socken ändert, bleiben beide Änderungen. Gelöschte Einträge hinterlassen eine Markierung, damit das andere Gerät sie nicht wieder heraufholt.
+
+In der Datenbank liegen zwei Arten von Zeilen: eine pro Reise, und eine für den Haushalt (Stammliste plus Verzeichnis der Reisen). So bleibt jede Übertragung klein, statt bei jedem Häkchen den ganzen Datenbestand hochzuladen.
+
+### Wie sicher ist das?
+
+Der anon-Key ist für den Browser gedacht, aber öffentlich lesbar, sobald er auf einem Gerät eingegeben ist. Der Schutz liegt im zufälligen 20-stelligen Familien-Code: ohne ihn lässt sich nichts abfragen. Für eine private Packliste ist das angemessen – keine Passwörter oder Kartennummern in die Notizfelder schreiben.
+
+Strenger geht es mit Supabase **Authentication**: dann die Policies in `schema.sql` von `anon` auf `authenticated` mit `user_id`-Prüfung umstellen.
+
+## Dateien
+
+| Datei | Zweck |
+| --- | --- |
+| `index.html` | Grundgerüst |
+| `assets/style.css` | Gestaltung, hell und dunkel |
+| `src/model.js` | Feste Begriffe (Reisearten, Jahreszeiten, Regionen, Personen) und die Ausgangswerte für Bereiche und Aktivitäten |
+| `src/seed.js` | Ausgangsstand der Stammliste |
+| `src/icons.js` | Strich-Icons als inline SVG |
+| `src/generator.js` | Stammliste + Angaben → Liste, inkl. Zusammenführen mit dem bestehenden Stand |
+| `src/store.js` | Zustand, localStorage, Merge-Logik für den Sync |
+| `src/sync.js` | Supabase mit Realtime |
+| `src/app.js` | Oberfläche |
+| `sw.js` | Service Worker: Netzwerk zuerst, Cache als Rückfallebene |
+| `supabase/schema.sql` | Tabelle und Policies |
+
+## Lizenz
+
+MIT

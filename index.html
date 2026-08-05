@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Packliste</title>
+    <meta name="description" content="Packliste, die sich aus Reiseart, Nächten, Jahreszeit und Aktivitäten selbst zusammenstellt." />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Packliste" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="assets/icon-180.png" />
+    <link rel="stylesheet" href="assets/style.css" />
+  </head>
+  <body>
+    <div id="app" class="app">
+      <header class="topbar">
+        <div class="topbar-row">
+          <button class="trip-switch" id="tripSwitch" type="button">
+            <span class="trip-name" id="topTripName">Reisen</span>
+            <span class="trip-sub" id="topTripSub">Familie Hofmann</span>
+          </button>
+          <button class="icon-btn" id="btnSync" type="button" title="Sync"></button>
+        </div>
+        <div class="progress" id="progressWrap">
+          <span class="progress-bar"><span class="progress-fill" id="progressFill"></span></span>
+          <span class="progress-text" id="progressText">0 / 0</span>
+        </div>
+      </header>
+
+      <main id="view" class="view"></main>
+
+      <nav class="tabbar">
+        <button class="tab is-active" data-tab="reisen" type="button"><span class="tab-ico"></span>Reisen</button>
+        <button class="tab" data-tab="liste" type="button"><span class="tab-ico"></span>Liste</button>
+        <button class="tab" data-tab="reise" type="button"><span class="tab-ico"></span>Angaben</button>
+        <button class="tab" data-tab="stamm" type="button"><span class="tab-ico"></span>Stammliste</button>
+      </nav>
+    </div>
+
+    <div class="sheet-backdrop" id="sheetBackdrop" hidden>
+      <div class="sheet" id="sheet" role="dialog" aria-modal="true"></div>
+    </div>
+
+    <div class="toast" id="toast" hidden></div>
+
+    <script type="module" src="src/app.js"></script>
+  </body>
+</html>
