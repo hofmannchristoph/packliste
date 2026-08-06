@@ -28,6 +28,17 @@ let client = null;
 let channel = null;
 const pushTimers = new Map();
 const pushedRev = new Map();
+/**
+ * Fingerabdruck des zuletzt hochgeladenen Reiseverzeichnisses.
+ *
+ * Eine neue Reise ändert die Revision des Haushalts nicht – die zählt nur
+ * Stammliste, Bereiche und Aktivitäten. Ohne diesen Vergleich bliebe die
+ * Liste der Reise-IDs veraltet, und das andere Gerät erführe nie, dass es die
+ * Reisen überhaupt gibt.
+ */
+let letzteTripSignatur = null;
+
+const tripSignatur = () => Object.keys(state.data.trips).sort().join(',');
 
 function setStatus(mode, text, error = null) {
   state.syncStatus = { mode, text, error };
@@ -76,6 +87,7 @@ export function disconnect() {
   }
   client = null;
   pushedRev.clear();
+  letzteTripSignatur = null;
   setStatus('local', 'Nur auf diesem Gerät');
 }
 
@@ -104,7 +116,10 @@ function applyRemote(row) {
     persist();
     emit();
     if (fehlend.length) pullTrips(fehlend).catch(() => {});
-    if (haushaltRevision() > (row.rev ?? row.masterUpdatedAt ?? 0)) pushHousehold();
+    // Kennt die Gegenseite Reisen von uns noch nicht, Verzeichnis nachtragen.
+    const bekannt = new Set(row.tripIds ?? []);
+    const unbekannt = Object.keys(state.data.trips).some((id) => !bekannt.has(id));
+    if (unbekannt || haushaltRevision() > (row.rev ?? row.masterUpdatedAt ?? 0)) pushHousehold();
     return;
   }
   if (!row.id) return;
@@ -184,7 +199,9 @@ export function pushHousehold(delay = 600) {
     id,
     setTimeout(async () => {
       const rev = haushaltRevision();
-      if (pushedRev.has(id) && rev <= pushedRev.get(id)) return;
+      const signatur = tripSignatur();
+      // Auch hochladen, wenn nur eine Reise dazugekommen oder weggefallen ist.
+      if (pushedRev.has(id) && rev <= pushedRev.get(id) && signatur === letzteTripSignatur) return;
       if (!client) {
         const ok = await connect();
         if (!ok) return;
@@ -202,6 +219,7 @@ export function pushHousehold(delay = 600) {
           tripIds: Object.keys(state.data.trips),
         });
         pushedRev.set(id, rev);
+        letzteTripSignatur = signatur;
       } catch (err) {
         setStatus('error', 'Hochladen fehlgeschlagen', String(err?.message ?? err));
       }

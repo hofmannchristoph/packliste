@@ -5,7 +5,7 @@
  * den Namen dieses Caches aus. Bei jeder Veröffentlichung hochzählen.
  */
 
-const VERSION = 'packliste-v18';
+const VERSION = 'packliste-v19';
 const SHELL = [
   './',
   'index.html',
