@@ -1308,14 +1308,56 @@ function renderReise(trip) {
 // Stammliste
 // ===========================================================================
 
+/** Bedingungen eines Teils in einem Satz. */
+function bedingungText(t) {
+  const teile = [];
+  if (t.arten?.length) teile.push(t.arten.map((a) => labelOf(ARTEN, a)).join(' / '));
+  if (t.aktivitaeten?.length) teile.push(t.aktivitaeten.map((a) => labelOf(AKTIVITAETEN(), a)).join(' / '));
+  if (t.jahreszeiten?.length) teile.push(t.jahreszeiten.map((a) => labelOf(JAHRESZEITEN, a)).join(' / '));
+  if (t.wennDabei?.length) teile.push('wenn ' + t.wennDabei.map(personName).join(' oder ') + ' mit');
+  if (t.minNaechte) teile.push(`ab ${t.minNaechte} Nächten`);
+  return teile.length ? teile.join(' · ') : 'immer dabei';
+}
+
+const bedVon = (t) => ({
+  arten: t.arten ?? [],
+  aktivitaeten: t.aktivitaeten ?? [],
+  jahreszeiten: t.jahreszeiten ?? [],
+  wennDabei: t.wennDabei ?? [],
+  minNaechte: t.minNaechte ?? 0,
+});
+
+/** Der aufklappbare Block mit den Bedingungen eines Teils. */
+function teilBedingungen(b) {
+  return `<div class="teil-bed-block">
+    <div class="teil-bed-feld"><span>Nur bei diesen Reisearten</span>
+      <div class="options" data-bedgruppe="arten">${chipsMulti(ARTEN, b.arten, 'w')}</div></div>
+    <div class="teil-bed-feld"><span>Nur bei diesen Aktivitäten</span>
+      <div class="options" data-bedgruppe="aktivitaeten">${chipsMulti(AKTIVITAETEN(), b.aktivitaeten, 'w')}</div></div>
+    <div class="teil-bed-feld"><span>Nur in diesen Jahreszeiten</span>
+      <div class="options" data-bedgruppe="jahreszeiten">${chipsMulti(JAHRESZEITEN, b.jahreszeiten, 'w')}</div></div>
+    <div class="teil-bed-feld"><span>Nur wenn mit dabei</span>
+      <div class="options" data-bedgruppe="wennDabei">${chipsMulti(
+        PERSONEN.map((p) => ({ id: p.id, label: p.name })),
+        b.wennDabei,
+        'w'
+      )}</div></div>
+    <label class="teil-bed-feld"><span>Erst ab Anzahl Nächten</span>
+      <input class="teil-min" type="number" min="0" max="60" value="${b.minNaechte ?? 0}" /></label>
+  </div>`;
+}
+
 /**
  * Eine Zeile im Inhalt eines Behälters: Text, Menge, fix oder pro Nacht.
- * Zuschlag und Maximum erscheinen erst, wenn pro Nacht gerechnet wird –
- * sonst wäre die Zeile auf dem Handy überladen.
+ * Zuschlag und Maximum erscheinen erst bei „pro Nacht", die Bedingungen erst
+ * beim Aufklappen – sonst wäre die Zeile auf dem Handy überladen.
  */
-function teilZeile(t) {
+function teilZeile(t, offen = false) {
   const pn = Boolean(t.pronacht);
-  return `<div class="teil-block">
+  const b = bedVon(t);
+  const eingeschraenkt =
+    b.arten.length || b.aktivitaeten.length || b.jahreszeiten.length || b.wennDabei.length || b.minNaechte;
+  return `<div class="teil-block" data-bed="${encodeURIComponent(JSON.stringify(b))}" data-offen="${offen ? 1 : 0}">
     <div class="teil-zeile">
       <input class="teil-label" type="text" value="${esc(t.label)}" placeholder="z.B. Pantoprazol" />
       <input class="teil-qty" type="number" min="0.1" step="0.1" value="${t.qty ?? 1}" aria-label="Menge" />
@@ -1333,6 +1375,11 @@ function teilZeile(t) {
            </div>`
         : ''
     }
+    <button class="teil-bed-knopf ${eingeschraenkt ? 'is-gesetzt' : ''}" type="button">
+      <span class="teil-bed-text">${esc(bedingungText(b))}</span>
+      <span class="teil-bed-chev ${offen ? 'is-open' : ''}">${icon('chevron', 14)}</span>
+    </button>
+    ${offen ? teilBedingungen(b) : ''}
   </div>`;
 }
 
@@ -1676,7 +1723,7 @@ function openStammSheet(id, vorgabe = null) {
       </div>
 
       <div class="field"><span>Inhalt <span class="hint">– leer = einfacher Eintrag</span></span>
-        <div id="sTeile">${(e.teile ?? []).map(teilZeile).join('')}</div>
+        <div id="sTeile">${(e.teile ?? []).map((t) => teilZeile(t)).join('')}</div>
         <button class="btn" id="sTeilNeu" style="margin-top:10px">${icon('plus', 20)} Teil hinzufügen</button>
         ${
           istBehaelter
@@ -1773,36 +1820,88 @@ function openStammSheet(id, vorgabe = null) {
      * Eintrag dadurch zum Behälter wird oder wieder ein einfacher.
      */
     const liste = b.querySelector('#sTeile');
+    const bedLesen = (z) => {
+      try {
+        return JSON.parse(decodeURIComponent(z.dataset.bed || '')) ?? bedVon({});
+      } catch {
+        return bedVon({});
+      }
+    };
     const zeileLesen = (z) => ({
       label: z.querySelector('.teil-label').value.trim(),
       qty: Number(z.querySelector('.teil-qty').value) || 1,
       pronacht: z.querySelector('.teil-pn').classList.contains('is-active'),
       plus: Number(z.querySelector('.teil-plus')?.value) || 0,
       cap: Number(z.querySelector('.teil-cap')?.value) || null,
+      ...bedLesen(z),
     });
     const teileLesen = () => [...liste.querySelectorAll('.teil-block')].map(zeileLesen);
     const uebernehmen = () => (e.teile = teileLesen().filter((t) => t.label));
 
-    const wireZeile = (z) => {
-      z.querySelectorAll('input').forEach((f) => f.addEventListener('input', uebernehmen));
+    /** Zeile mit veränderten Daten neu aufbauen und wieder verdrahten. */
+    const neuZeichnen = (z, daten, offen) => {
+      const huelle = document.createElement('div');
+      huelle.innerHTML = teilZeile(daten, offen);
+      const neu = huelle.firstElementChild;
+      z.replaceWith(neu);
+      wireZeile(neu);
+      uebernehmen();
+      return neu;
+    };
+
+    function wireZeile(z) {
+      z.querySelectorAll('.teil-label, .teil-qty, .teil-plus, .teil-cap').forEach((f) =>
+        f.addEventListener('input', uebernehmen)
+      );
       z.querySelector('.teil-pn').addEventListener('click', () => {
         // Umschalten blendet Zuschlag und Maximum ein oder aus: Zeile neu bauen.
         const daten = zeileLesen(z);
         daten.pronacht = !daten.pronacht;
-        const huelle = document.createElement('div');
-        huelle.innerHTML = teilZeile(daten);
-        const neu = huelle.firstElementChild;
-        z.replaceWith(neu);
-        wireZeile(neu);
-        uebernehmen();
+        neuZeichnen(z, daten, z.dataset.offen === '1');
       });
+      z.querySelector('.teil-bed-knopf').addEventListener('click', () =>
+        neuZeichnen(z, zeileLesen(z), z.dataset.offen !== '1')
+      );
+
+      // Bedingungen sitzen im data-Attribut, nicht in Eingabefeldern.
+      const bedAendern = (fn) => {
+        const bed = bedLesen(z);
+        fn(bed);
+        z.dataset.bed = encodeURIComponent(JSON.stringify(bed));
+        z.querySelector('.teil-bed-text').textContent = bedingungText(bed);
+        z.querySelector('.teil-bed-knopf').classList.toggle(
+          'is-gesetzt',
+          Boolean(
+            bed.arten.length || bed.aktivitaeten.length || bed.jahreszeiten.length ||
+              bed.wennDabei.length || bed.minNaechte
+          )
+        );
+        uebernehmen();
+      };
+      z.querySelectorAll('[data-bedgruppe]').forEach((gruppe) => {
+        const feld = gruppe.dataset.bedgruppe;
+        gruppe.querySelectorAll('[data-w]').forEach((chip) =>
+          chip.addEventListener('click', () => {
+            chip.classList.toggle('is-active');
+            bedAendern((bed) => {
+              const s = new Set(bed[feld]);
+              s.has(chip.dataset.w) ? s.delete(chip.dataset.w) : s.add(chip.dataset.w);
+              bed[feld] = [...s];
+            });
+          })
+        );
+      });
+      z.querySelector('.teil-min')?.addEventListener('input', (ev) =>
+        bedAendern((bed) => (bed.minNaechte = Number(ev.target.value) || 0))
+      );
+
       z.querySelector('.teil-del').addEventListener('click', () => {
         const warBehaelter = teileLesen().filter((t) => t.label).length > 0;
         z.remove();
         uebernehmen();
         if (warBehaelter && !e.teile.length) zeichne(root);
       });
-    };
+    }
     liste.querySelectorAll('.teil-block').forEach(wireZeile);
 
     b.querySelector('#sTeilNeu').addEventListener('click', () => {

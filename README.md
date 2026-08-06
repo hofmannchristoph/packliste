@@ -52,7 +52,7 @@ Pro Eintrag lässt sich festlegen:
 | Nur in diesen Regionen | leer = überall |
 | Nur wenn mit dabei | z.B. „Crafty Christoph" nur wenn Christoph mitkommt |
 | Erst ab Anzahl Nächten | z.B. Packwürfel ab 6 Nächten |
-| Inhalt | Macht den Eintrag zum **Behälter**: eine Zeile pro Teil, jede mit eigener Menge |
+| Inhalt | Macht den Eintrag zum **Behälter**: eine Zeile pro Teil, jede mit eigener Menge und eigenen Bedingungen |
 | Notiz | Kleingedrucktes, z.B. „nur wenn richtig gekocht wird" |
 
 ### Bereiche und Aktivitäten
@@ -68,6 +68,10 @@ Ein Necessaire ist kein Ding, sondern sechs. Trägt ein Eintrag einen **Inhalt**
 Der Pfeil zum Auf- und Zuklappen steht beim Namen, damit rechts die gewohnte Stift-Spalte frei bleibt: Behälter lassen sich genauso bearbeiten wie alles andere. Der Stift öffnet dabei einen eigenen Dialog mit dem Inhalt zum Abhaken, statt der Mengenfelder, die für einen Behälter keinen Sinn ergeben.
 
 Jedes Teil hat seine eigene Menge, entweder fest oder **pro Nacht**. Damit lässt sich „Pantoprazol 1 pro Nacht" abbilden: bei 5 Nächten stehen 5 auf der Liste, bei 12 Nächten 12. Der Behälter selbst hat keine Menge mehr, sobald er Inhalt hat – die Felder verschwinden dann.
+
+**Teile haben eigene Bedingungen.** Reisearten, Aktivitäten, Jahreszeiten, „nur wenn X mit" und „ab N Nächten" – dieselben wie beim ganzen Eintrag, und sie gelten zusätzlich zu dessen Bedingungen. So bleibt das Necessaire eine Tasche, aber Rasierer und Trimmer tauchen in Lenz nicht auf (liegen dort schon) und bei zwei Nächten auch nicht. Fällt dadurch jedes Teil weg, verschwindet der Behälter mit.
+
+Im Editor bleibt die Zeile kompakt: unter jedem Teil steht eine graue Kurzfassung („immer dabei" bzw. „Basislager 4.0 / Hotel · ab 5 Nächten"), die den Bedingungsblock aufklappt.
 
 Gezählt werden die Teile, nicht der Behälter. Die IDs der Teile hängen am Text, nicht an der Position: Trägst du in der Stammliste ein Teil nach, bleibt in laufenden Reisen abgehakt, was schon abgehakt war.
 

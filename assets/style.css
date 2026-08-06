@@ -387,6 +387,40 @@ h2.section {
   margin-bottom: 4px;
 }
 .teil-fein-feld input { width: 100%; padding: 9px 10px; font-size: 14px; }
+
+/* Bedingungen eines Teils: eine ruhige Zeile, die den Block darunter aufklappt. */
+.teil-bed-knopf {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 4px 4px 12px;
+  font-size: 12px;
+  color: var(--ink-3);
+  text-align: left;
+}
+.teil-bed-knopf.is-gesetzt { color: var(--ink-2); font-weight: 600; }
+.teil-bed-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.teil-bed-chev { flex: none; transition: transform 0.15s ease; }
+.teil-bed-chev.is-open { transform: rotate(90deg); }
+
+.teil-bed-block {
+  margin: 6px 0 4px 12px;
+  padding: 12px;
+  border-radius: var(--r-s);
+  background: var(--fill);
+}
+.teil-bed-feld { display: block; }
+.teil-bed-feld + .teil-bed-feld { margin-top: 12px; }
+.teil-bed-feld > span {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-bottom: 6px;
+}
+.teil-bed-feld .chip { padding: 7px 12px; font-size: 13px; }
+.teil-bed-feld input { width: 100%; padding: 9px 10px; font-size: 14px; background: var(--surface); }
 .teil-zeile input { padding: 11px 10px; }
 /*
  * Breiten über flex-basis statt width: die Regel `input[type=number]`

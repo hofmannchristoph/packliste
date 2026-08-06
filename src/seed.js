@@ -48,17 +48,35 @@ export const tn = (label, faktor = 1, plus = 0, cap = null) => ({
   cap,
 });
 
-/** Ein Teil eines Behälters, immer als Objekt mit eigener Menge. */
-export const teilObjekt = (t) =>
-  typeof t === 'string'
-    ? { label: t.trim(), qty: 1, pronacht: false, plus: 0, cap: null }
-    : {
-        label: String(t.label ?? '').trim(),
-        qty: Number(t.qty) || 1,
-        pronacht: Boolean(t.pronacht),
-        plus: Number(t.plus) || 0,
-        cap: Number(t.cap) || null,
-      };
+/**
+ * Bedingungen an ein Teil hängen – z.B. der Rasierer, der in Lenz schon liegt
+ * und sich bei zwei Nächten sowieso nicht lohnt.
+ */
+export const nur = (teil, o = {}) => ({
+  ...teil,
+  arten: o.arten ?? [],
+  aktivitaeten: o.akt ?? [],
+  jahreszeiten: o.jz ?? [],
+  wennDabei: o.dabei ?? [],
+  minNaechte: o.min ?? 0,
+});
+
+/** Ein Teil eines Behälters, immer als Objekt mit Menge und Bedingungen. */
+export const teilObjekt = (t) => {
+  const o = typeof t === 'string' ? { label: t } : t;
+  return {
+    label: String(o.label ?? '').trim(),
+    qty: Number(o.qty) || 1,
+    pronacht: Boolean(o.pronacht),
+    plus: Number(o.plus) || 0,
+    cap: Number(o.cap) || null,
+    arten: o.arten ?? [],
+    aktivitaeten: o.aktivitaeten ?? [],
+    jahreszeiten: o.jahreszeiten ?? [],
+    wennDabei: o.wennDabei ?? [],
+    minNaechte: Number(o.minNaechte) || 0,
+  };
+};
 
 /** Kurzschreibweise. Alles nicht Angegebene ist unbeschränkt. */
 const i = (key, label, o = {}) => ({
@@ -170,12 +188,23 @@ export const SEED = [
   ...group('bad', [
     i('bad.necessaire_p1', 'Necessaire', {
       who: 'p1',
-      teile: ['Zahnbürste', 'Zahnpasta', 'Duschmittel', 'Deo', 'Haargel', 'Haarspray', 'Kamm', 'Bürste', 'Rasierer', 'Trimmer', 'Ladegerät'],
+      teile: [
+        'Zahnbürste', 'Zahnpasta', 'Duschmittel', 'Deo', 'Haargel', 'Haarspray',
+        'Kamm', 'Bürste', 'Ladegerät',
+        // In Lenz liegt beides schon dort, und für zwei Nächte lohnt es nicht.
+        nur(tq('Rasierer'), { arten: NICHT_LENZ, min: 5 }),
+        nur(tq('Trimmer'), { arten: NICHT_LENZ, min: 5 }),
+      ],
     }),
     i('bad.medis_p1', 'Medis', { who: 'p1', teile: ['Pantoprazol', 'Symbicort', 'Incruse', 'Nasenspray'] }),
     i('bad.necessaire_p2', 'Necessaire', {
       who: 'p2',
-      teile: ['Zahnbürste', 'Zahnpasta', 'Bürste', 'Gesichtscreme', 'Handcreme', 'Deo', 'Rasierer', 'Duschmittel', 'Shampoo und Conditioner', 'Nagelschere', 'Pinzette', 'Ohrenstäbli', 'OBs, Säckli und Binden'],
+      teile: [
+        'Zahnbürste', 'Zahnpasta', 'Bürste', 'Gesichtscreme', 'Handcreme', 'Deo',
+        'Duschmittel', 'Shampoo und Conditioner', 'Nagelschere', 'Pinzette',
+        'Ohrenstäbli', 'OBs, Säckli und Binden',
+        nur(tq('Rasierer'), { arten: NICHT_LENZ, min: 5 }),
+      ],
     }),
     i('bad.medis_p2', 'Medikamente', { who: 'p2' }),
     i('bad.epilierer', 'Epilierer', { who: 'p2' }),

@@ -75,17 +75,22 @@ export function resolveParams(trip) {
 /** Teile eines Behälters, bereinigt und immer als Objekt. */
 export const teileVon = (m) =>
   (m.teile ?? [])
-    .map((t) =>
-      typeof t === 'string'
-        ? { label: t.trim(), qty: 1, pronacht: false, plus: 0, cap: null }
-        : {
-            label: String(t.label ?? '').trim(),
-            qty: Number(t.qty) || 1,
-            pronacht: Boolean(t.pronacht),
-            plus: Number(t.plus) || 0,
-            cap: Number(t.cap) || null,
-          }
-    )
+    .map((t) => {
+      const o = typeof t === 'string' ? { label: t } : t;
+      return {
+        label: String(o.label ?? '').trim(),
+        qty: Number(o.qty) || 1,
+        pronacht: Boolean(o.pronacht),
+        plus: Number(o.plus) || 0,
+        cap: Number(o.cap) || null,
+        arten: o.arten ?? [],
+        aktivitaeten: o.aktivitaeten ?? [],
+        jahreszeiten: o.jahreszeiten ?? [],
+        regionen: o.regionen ?? [],
+        wennDabei: o.wennDabei ?? [],
+        minNaechte: Number(o.minNaechte) || 0,
+      };
+    })
     .filter((t) => t.label);
 
 /**
@@ -113,7 +118,14 @@ export function wantedItems(trip) {
   const wanted = new Map();
   for (const m of Object.values(trip.master ?? {})) {
     if (m.deleted || !matches(m, p)) continue;
-    const teile = teileVon(m);
+    const alleTeile = teileVon(m);
+    /*
+     * Teile tragen eigene Bedingungen und werden einzeln geprüft – der
+     * Rasierer liegt in Lenz schon dort und lohnt sich bei zwei Nächten nicht.
+     * Bleibt davon nichts übrig, entfällt der Behälter mit.
+     */
+    const teile = alleTeile.filter((t) => matches(t, p));
+    if (alleTeile.length && !teile.length) continue;
     const qty = amount(m, p);
     for (const target of targetsFor(m, p)) {
       const id = `${m.id}#${target.id}`;
