@@ -77,15 +77,27 @@ export const teileVon = (m) =>
   (m.teile ?? [])
     .map((t) =>
       typeof t === 'string'
-        ? { label: t.trim(), qty: 1, pronacht: false }
-        : { label: String(t.label ?? '').trim(), qty: Number(t.qty) || 1, pronacht: Boolean(t.pronacht) }
+        ? { label: t.trim(), qty: 1, pronacht: false, plus: 0, cap: null }
+        : {
+            label: String(t.label ?? '').trim(),
+            qty: Number(t.qty) || 1,
+            pronacht: Boolean(t.pronacht),
+            plus: Number(t.plus) || 0,
+            cap: Number(t.cap) || null,
+          }
     )
     .filter((t) => t.label);
 
-/** Menge eines einzelnen Teils – auch pro Nacht, z.B. bei Medikamenten. */
+/**
+ * Menge eines einzelnen Teils. Pro Nacht rechnet wie beim ganzen Eintrag:
+ * Faktor mal Nächte, plus Zuschlag, gedeckelt durch das Maximum.
+ */
 export function teilMenge(teil, p) {
   const n = Number(teil.qty) || 1;
-  return Math.max(1, teil.pronacht ? Math.ceil(n * p.naechte) : Math.round(n));
+  if (!teil.pronacht) return Math.max(1, Math.round(n));
+  const roh = Math.ceil(n * p.naechte) + (Number(teil.plus) || 0);
+  const grenze = Number(teil.cap) || null;
+  return Math.max(1, grenze ? Math.min(roh, grenze) : roh);
 }
 
 /**

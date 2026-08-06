@@ -71,17 +71,35 @@ Jedes Teil hat seine eigene Menge, entweder fest oder **pro Nacht**. Damit läss
 
 Gezählt werden die Teile, nicht der Behälter. Die IDs der Teile hängen am Text, nicht an der Position: Trägst du in der Stammliste ein Teil nach, bleibt in laufenden Reisen abgehakt, was schon abgehakt war.
 
-Behälter im Ausgangsstand: beide Necessaires, Medis, Kleinzeug, Salben, Täschli, Rucksack, Sonnenzeug, Gewürzkiste, Skiausrüstung, Kletterausrüstung, Malzeug, Draussen-Spielzeug, Velowerkzeug und Putzzeug.
+Behälter im Ausgangsstand: beide Necessaires, Medis, Täschli, Rucksack, Velokleider, Velozubehör, Velokiste, Crafty, Wild, Gewürze, Apotheke, Bad Kinder, Winterzubehör, Kappe & Halstuch, Badesachen, Skiausrüstung, Kletterausrüstung, Spielsachen, Spielzeug für die Fahrt und Draussen-Spielzeug.
 
 Zwischen den Bedingungen gilt UND, innerhalb einer genügt eines: *Arten: Basislager + Lenz, Aktivitäten: MTB* heisst „bei Basislager oder Lenz, aber nur wenn MTB angehakt ist".
 
 Abgehakt wird nur über das Kästchen, nie über den Text – beim Scrollen verhakt man sich sonst laufend etwas aus Versehen.
+
+**Zum Löschen über die Zeile wischen.** Waagrecht ziehen gehört der Wisch-Geste, senkrecht bleibt beim Scrollen. Erst jenseits von rund 90 Pixeln wird gelöscht, und auch dann erscheint unten ein *Widerrufen*. Bei einem Behälter gehen die Teile mit. In der Stammliste geht dasselbe.
+
+**Schnell etwas ergänzen:** am Ende jedes Abschnitts steht eine dezente Zeile *＋ hinzufügen*. Antippen, tippen, Enter – der Eintrag landet im richtigen Bereich bei der richtigen Person, und das Feld bleibt offen für den nächsten. Danach fragt der Hinweis unten, ob es auch in die Stammliste soll; erst dann kommen Menge, Bedingungen und der Rest zur Sprache. Nachträglich geht es über den Stift → *In die Stammliste aufnehmen*.
 
 Beim Hinzufügen eines Eintrags in einer laufenden Reise gibt es ein Häkchen *Auch in die Stammliste* – so wächst die Vorlage mit.
 
 Beim Neuberechnen bleibt Handarbeit erhalten: Abgehaktes bleibt abgehakt, geänderte Mengen werden nicht überschrieben, gelöschte Einträge kommen nicht zurück (*Gelöschte zurück* macht das rückgängig).
 
 Der Ausgangsstand steht in [`src/seed.js`](src/seed.js) und wird nur beim ersten Start gelesen – oder über *Stammliste zurücksetzen*.
+
+### Woher die Zahlen kommen
+
+Die Mengen sind an den bisherigen Papierlisten kalibriert, an den beiden Extremen gleichzeitig:
+
+| | Scuol, 3 Nächte | Campingferien, 14 Nächte |
+| --- | --- | --- |
+| Unterhosen | 4 (Liste: 3) | 15 (Liste: 16) |
+| T-Shirt | 3 (Liste: 3) | 10 (Liste: 10) |
+| Socken lang | 3 (Liste: 3) | 12 (Liste: 12) |
+| Velohosen kurz | 2 (Liste: 2) | 4 (Liste: 4) |
+| Velosocken | 3 (Liste: 3) | 5 (Liste: 6) |
+
+Velokleider skalieren bewusst flach mit Deckel – unterwegs wird gewaschen, darum braucht es bei vierzehn Nächten nicht das Fünffache von drei Nächten.
 
 ### Gliederung der Liste
 
@@ -95,6 +113,8 @@ Zwei Ebenen, je nach Ansicht:
 Gibt es nur eine Unterebene, entfällt deren Überschrift – Küche und Camper enthalten nur Gemeinsames und bleiben deshalb flach.
 
 ## Gestaltung
+
+Bottom Sheets lassen sich am Griff nach unten wegziehen – aus einem Formular führt also nicht nur der Speichern-Knopf heraus.
 
 Angelehnt an die Bedienlogik grosser Mobility-Apps: monochrom schwarz/weiss, grosse linksbündige Titel, Zeilen mit Icon-Kachel, Bottom Sheets mit fixiertem Hauptknopf unten, Chips statt Auswahlfelder, grosse Flächen zum Antippen. Hell und dunkel folgen dem Systemthema. Eigene Strich-Icons in [`src/icons.js`](src/icons.js), keine Emoji.
 

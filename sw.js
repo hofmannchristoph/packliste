@@ -1,6 +1,6 @@
 /* Service Worker: App-Shell offline verfügbar halten. */
 
-const VERSION = 'packliste-v10';
+const VERSION = 'packliste-v13';
 const SHELL = [
   './',
   'index.html',

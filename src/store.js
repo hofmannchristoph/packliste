@@ -268,6 +268,21 @@ export function removeItem(tripId, itemId) {
   emit();
 }
 
+/** Löschen einer Reisezeile zurücknehmen – für „Widerrufen" nach dem Wischen. */
+export function undoRemoveItem(tripId, itemIds) {
+  const trip = state.data.trips[tripId];
+  if (!trip) return;
+  const now = Date.now();
+  for (const id of [].concat(itemIds)) {
+    const item = trip.items[id];
+    if (!item) continue;
+    trip.items[id] = { ...item, deleted: false, updatedAt: now };
+    delete trip.dismissed[id];
+  }
+  persist();
+  emit();
+}
+
 export function restoreDismissed(tripId) {
   const trip = state.data.trips[tripId];
   if (!trip) return;
@@ -451,6 +466,16 @@ export function removeMasterItem(id) {
   const cur = state.data.master[id];
   if (!cur) return;
   state.data.master[id] = { ...cur, deleted: true, updatedAt: Date.now() };
+  state.data.masterUpdatedAt = Date.now();
+  persist();
+  emit();
+}
+
+/** Löschen eines Stammlisten-Eintrags zurücknehmen. */
+export function undoRemoveMasterItem(id) {
+  const cur = state.data.master[id];
+  if (!cur) return;
+  state.data.master[id] = { ...cur, deleted: false, updatedAt: Date.now() };
   state.data.masterUpdatedAt = Date.now();
   persist();
   emit();

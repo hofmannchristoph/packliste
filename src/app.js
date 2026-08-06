@@ -38,6 +38,8 @@ let stammFilter = { bereich: 'alle', suche: '' };
  * sehen, was drin ist. Nur für die Ansicht, wird nicht gespeichert.
  */
 const zugeklappt = new Set();
+/** Welches Schnell-Eingabefeld unter einem Abschnitt offen ist (`Bereich|Person`). */
+let addFeld = null;
 
 /** Bereiche und Aktivitäten kommen aus dem Zustand – sie sind bearbeitbar. */
 const BEREICHE = () => store.bereiche();
@@ -93,12 +95,110 @@ function setTab(next) {
 // Hilfsfunktionen
 // ---------------------------------------------------------------------------
 
-function toast(msg, ms = 2400) {
+/**
+ * Kurze Rückmeldung unten. `aktion` hängt einen Knopf an, etwa zum
+ * Widerrufen eines Löschvorgangs.
+ */
+function toast(msg, aktion = null, ms = aktion ? 5000 : 2400) {
   const el = $('#toast');
-  el.textContent = msg;
+  el.innerHTML = `<span>${esc(msg)}</span>${
+    aktion ? `<button class="toast-aktion" type="button">${esc(aktion.text)}</button>` : ''
+  }`;
   el.hidden = false;
+  el.querySelector('.toast-aktion')?.addEventListener('click', () => {
+    el.hidden = true;
+    aktion.fn();
+  });
   clearTimeout(toast._t);
   toast._t = setTimeout(() => (el.hidden = true), ms);
+}
+
+/**
+ * Zum Löschen über eine Zeile wischen.
+ *
+ * Waagrecht ziehen gehört uns, senkrecht bleibt beim Browser (`touch-action`),
+ * damit das Scrollen unbeeinträchtigt bleibt. Erst jenseits der Schwelle wird
+ * gelöscht – und auch dann nur mit einem Widerrufen-Knopf.
+ */
+function wischbar(el, onDelete) {
+  const SCHWELLE = 88;
+  let x0 = 0;
+  let y0 = 0;
+  let dx = 0;
+  let ziehen = false;
+  let entschieden = false;
+  let geloescht = false;
+
+  const zuruecksetzen = () => {
+    el.style.transition = 'transform .18s ease, opacity .18s ease';
+    el.style.transform = '';
+    el.style.opacity = '';
+    el.classList.remove('wischt', 'loescht');
+    setTimeout(() => (el.style.transition = ''), 200);
+  };
+
+  el.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    // Kästchen, Stift und Eingabefelder behalten ihre eigene Bedienung.
+    if (e.target.closest('.box-btn, .item-more, input, textarea, select')) return;
+    x0 = e.clientX;
+    y0 = e.clientY;
+    dx = 0;
+    ziehen = true;
+    entschieden = false;
+    geloescht = false;
+  });
+
+  el.addEventListener('pointermove', (e) => {
+    if (!ziehen) return;
+    const ax = e.clientX - x0;
+    const ay = e.clientY - y0;
+    if (!entschieden) {
+      if (Math.abs(ax) < 10 && Math.abs(ay) < 10) return;
+      // Senkrechte Absicht: Finger dem Scrollen überlassen.
+      if (Math.abs(ay) >= Math.abs(ax)) {
+        ziehen = false;
+        return;
+      }
+      entschieden = true;
+      el.classList.add('wischt');
+      el.setPointerCapture?.(e.pointerId);
+    }
+    dx = ax;
+    const weit = Math.abs(dx) >= SCHWELLE;
+    el.classList.toggle('loescht', weit);
+    el.style.transform = `translateX(${dx}px)`;
+    el.style.opacity = String(Math.max(0.35, 1 - Math.abs(dx) / 320));
+    e.preventDefault();
+  });
+
+  const ende = () => {
+    if (!ziehen) return;
+    ziehen = false;
+    if (entschieden && Math.abs(dx) >= SCHWELLE) {
+      geloescht = true;
+      el.style.transition = 'transform .16s ease, opacity .16s ease';
+      el.style.transform = `translateX(${dx > 0 ? 400 : -400}px)`;
+      el.style.opacity = '0';
+      setTimeout(onDelete, 130);
+    } else if (entschieden) {
+      zuruecksetzen();
+    }
+  };
+  el.addEventListener('pointerup', ende);
+  el.addEventListener('pointercancel', ende);
+
+  // Nach einem Wischen keinen Klick auslösen (die Stammlisten-Zeile öffnet sonst).
+  el.addEventListener(
+    'click',
+    (e) => {
+      if (entschieden || geloescht) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    },
+    true
+  );
 }
 
 /**
@@ -106,18 +206,63 @@ function toast(msg, ms = 2400) {
  * beim Scrollen immer erreichbar.
  */
 function openSheet({ body, foot }, wire) {
-  sheet.innerHTML = `<div class="sheet-grip"></div>
+  sheet.innerHTML = `<div class="sheet-griff" id="sheetGriff"><span class="sheet-grip"></span></div>
     <div class="sheet-scroll">${body}</div>
     ${foot ? `<div class="sheet-foot">${foot}</div>` : ''}`;
   sheetBackdrop.hidden = false;
   document.body.style.overflow = 'hidden';
   sheet.querySelector('.sheet-scroll').scrollTop = 0;
+  sheet.style.transform = '';
+  griffZiehen();
   wire?.(sheet);
+}
+
+/**
+ * Am Griff nach unten ziehen schliesst das Sheet. Der Griff sieht wie ein
+ * Ziehen aus, also soll er sich auch so verhalten – sonst führt aus einem
+ * Formular nur der Speichern-Knopf heraus.
+ */
+function griffZiehen() {
+  const griff = sheet.querySelector('#sheetGriff');
+  if (!griff) return;
+  const SCHWELLE = 110;
+  let y0 = 0;
+  let dy = 0;
+  let ziehen = false;
+
+  griff.addEventListener('pointerdown', (e) => {
+    y0 = e.clientY;
+    dy = 0;
+    ziehen = true;
+    griff.setPointerCapture?.(e.pointerId);
+    sheet.style.transition = '';
+  });
+  griff.addEventListener('pointermove', (e) => {
+    if (!ziehen) return;
+    dy = Math.max(0, e.clientY - y0);
+    sheet.style.transform = `translateY(${dy}px)`;
+    e.preventDefault();
+  });
+  const ende = () => {
+    if (!ziehen) return;
+    ziehen = false;
+    sheet.style.transition = 'transform .2s ease';
+    if (dy >= SCHWELLE) {
+      sheet.style.transform = 'translateY(100%)';
+      setTimeout(closeSheet, 180);
+    } else {
+      sheet.style.transform = '';
+    }
+    setTimeout(() => (sheet.style.transition = ''), 220);
+  };
+  griff.addEventListener('pointerup', ende);
+  griff.addEventListener('pointercancel', ende);
 }
 
 function closeSheet() {
   sheetBackdrop.hidden = true;
   sheet.innerHTML = '';
+  sheet.style.transform = '';
   document.body.style.overflow = '';
 }
 
@@ -562,6 +707,8 @@ function groupItems(trip, items) {
         'user',
         BEREICHE().map((cat) => ({
           label: cat.label,
+          category: cat.id,
+          assignee: id,
           items: eigene.filter((it) => it.category === cat.id).sort(nachName),
         }))
       );
@@ -569,7 +716,12 @@ function groupItems(trip, items) {
     const shared = items.filter((it) => it.assignee === SHARED);
     for (const cat of BEREICHE()) {
       push(`s-${cat.id}`, cat.label, cat.ico, [
-        { label: null, items: shared.filter((it) => it.category === cat.id).sort(nachName) },
+        {
+          label: null,
+          category: cat.id,
+          assignee: SHARED,
+          items: shared.filter((it) => it.category === cat.id).sort(nachName),
+        },
       ]);
     }
     return groups;
@@ -584,6 +736,8 @@ function groupItems(trip, items) {
       cat.ico,
       reihenfolge.map((wer) => ({
         label: personName(wer),
+        category: cat.id,
+        assignee: wer,
         items: drin.filter((it) => it.assignee === wer).sort(nachName),
       }))
     );
@@ -629,11 +783,21 @@ function renderListe(trip) {
           <span class="count">${g.items.filter((x) => !istErledigt(trip, x)).length} offen</span>
         </div>
         ${g.abschnitte
-          .map(
-            (a) =>
-              `${a.label ? `<div class="unter-kopf">${esc(a.label)}</div>` : ''}
-               ${a.items.map((it) => zeileMitTeilen(trip, it, false)).join('')}`
-          )
+          .map((a) => {
+            const schluessel = `${a.category}|${a.assignee}`;
+            return `${a.label ? `<div class="unter-kopf">${esc(a.label)}</div>` : ''}
+               ${a.items.map((it) => zeileMitTeilen(trip, it, false)).join('')}
+               ${
+                 addFeld === schluessel
+                   ? `<div class="add-zeile is-offen">
+                        <input type="text" class="add-eingabe" data-add-feld="${esc(schluessel)}"
+                          placeholder="Was noch? Enter zum Hinzufügen" />
+                      </div>`
+                   : `<button class="add-zeile" data-add="${esc(schluessel)}" type="button">
+                        ${icon('plus', 15)} hinzufügen
+                      </button>`
+               }`;
+          })
           .join('')}
       </section>`
         )
@@ -692,6 +856,55 @@ function renderListe(trip) {
   view.querySelectorAll('.item .item-more').forEach((btn) =>
     btn.addEventListener('click', () => openItemSheet(trip, btn.closest('.item').dataset.id))
   );
+
+  // Wischen löscht den Eintrag – nur für diese Reise, und widerrufbar.
+  view.querySelectorAll('.item').forEach((row) =>
+    wischbar(row, () => {
+      const id = row.dataset.id;
+      const it = trip.items[id];
+      if (!it) return;
+      // Bei einem Behälter gehen die Teile mit.
+      const ids = it.isContainer ? [id, ...kinderVon(trip, id).map((k) => k.id)] : [id];
+      for (const x of ids) store.removeItem(trip.id, x);
+      toast(`„${it.label}" entfernt`, {
+        text: 'Widerrufen',
+        fn: () => store.undoRemoveItem(trip.id, ids),
+      });
+    })
+  );
+
+  // Schnell etwas ergänzen, direkt im richtigen Abschnitt.
+  view.querySelectorAll('[data-add]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      addFeld = btn.dataset.add;
+      render();
+    })
+  );
+  const feld = view.querySelector('[data-add-feld]');
+  if (feld) {
+    feld.focus();
+    const [category, assignee] = feld.dataset.addFeld.split('|');
+    const schliessen = () => {
+      addFeld = null;
+      render();
+    };
+    feld.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') return schliessen();
+      if (e.key !== 'Enter') return;
+      const label = feld.value.trim();
+      if (!label) return schliessen();
+      store.addManualItem(trip.id, { label, category, assignee });
+      // Feld bleibt offen, damit mehrere Sachen hintereinander gehen.
+      toast(`„${label}" hinzugefügt`, {
+        text: 'In die Stammliste',
+        fn: () => openStammSheet(null, { label, category, wer: assignee === SHARED ? [] : [assignee] }),
+      });
+    });
+    feld.addEventListener('blur', () => {
+      if (!feld.value.trim()) schliessen();
+    });
+  }
+
   $('#addItem').addEventListener('click', () => openAddItemSheet(trip));
   $('#exportBtn').addEventListener('click', () => openExportSheet(trip));
 }
@@ -776,7 +989,7 @@ function openItemSheet(trip, itemId) {
         ${
           it.source === 'auto'
             ? `<button class="btn" id="iStamm">${icon('list', 20)} In der Stammliste bearbeiten</button>`
-            : ''
+            : `<button class="btn" id="iStammNeu">${icon('list', 20)} In die Stammliste aufnehmen</button>`
         }
         <button class="btn danger" id="iDel">${icon('trash', 20)} Nur bei dieser Reise entfernen</button>`,
       foot: `<button class="btn primary" id="iSave">Speichern</button>`,
@@ -805,6 +1018,16 @@ function openItemSheet(trip, itemId) {
         closeSheet();
         setTab('stamm');
         openStammSheet(it.masterId);
+      });
+      root.querySelector('#iStammNeu')?.addEventListener('click', () => {
+        closeSheet();
+        setTab('stamm');
+        openStammSheet(null, {
+          label: it.label,
+          category: it.category,
+          qty: it.qty,
+          wer: it.assignee === SHARED ? [] : [it.assignee],
+        });
       });
       root.querySelector('#iDel').addEventListener('click', () => {
         store.removeItem(trip.id, itemId);
@@ -1085,14 +1308,31 @@ function renderReise(trip) {
 // Stammliste
 // ===========================================================================
 
-/** Eine Zeile im Inhalt eines Behälters: Text, Menge, fix oder pro Nacht. */
+/**
+ * Eine Zeile im Inhalt eines Behälters: Text, Menge, fix oder pro Nacht.
+ * Zuschlag und Maximum erscheinen erst, wenn pro Nacht gerechnet wird –
+ * sonst wäre die Zeile auf dem Handy überladen.
+ */
 function teilZeile(t) {
-  return `<div class="teil-zeile">
-    <input class="teil-label" type="text" value="${esc(t.label)}" placeholder="z.B. Pantoprazol" />
-    <input class="teil-qty" type="number" min="0.1" step="0.1" value="${t.qty ?? 1}" aria-label="Menge" />
-    <button class="chip teil-pn ${t.pronacht ? 'is-active' : ''}" type="button"
-      title="Menge pro Nacht rechnen">/Nacht</button>
-    <button class="teil-del" type="button" aria-label="Teil entfernen">${icon('close', 18)}</button>
+  const pn = Boolean(t.pronacht);
+  return `<div class="teil-block">
+    <div class="teil-zeile">
+      <input class="teil-label" type="text" value="${esc(t.label)}" placeholder="z.B. Pantoprazol" />
+      <input class="teil-qty" type="number" min="0.1" step="0.1" value="${t.qty ?? 1}" aria-label="Menge" />
+      <button class="chip teil-pn ${pn ? 'is-active' : ''}" type="button"
+        title="Menge aus den Nächten rechnen">/Nacht</button>
+      <button class="teil-del" type="button" aria-label="Teil entfernen">${icon('close', 18)}</button>
+    </div>
+    ${
+      pn
+        ? `<div class="teil-zeile teil-fein">
+             <label class="teil-fein-feld"><span>Zuschlag</span>
+               <input class="teil-plus" type="number" min="0" max="20" value="${t.plus ?? 0}" /></label>
+             <label class="teil-fein-feld"><span>Maximum</span>
+               <input class="teil-cap" type="number" min="1" max="99" value="${t.cap ?? ''}" placeholder="ohne" /></label>
+           </div>`
+        : ''
+    }
   </div>`;
 }
 
@@ -1208,9 +1448,20 @@ function renderStammliste() {
       render();
     })
   );
-  view.querySelectorAll('[data-stamm]').forEach((b) =>
-    b.addEventListener('click', () => openStammSheet(b.dataset.stamm))
-  );
+  view.querySelectorAll('[data-stamm]').forEach((b) => {
+    b.addEventListener('click', () => openStammSheet(b.dataset.stamm));
+    // Wischen löscht aus der Stammliste – ebenfalls widerrufbar.
+    wischbar(b, () => {
+      const id = b.dataset.stamm;
+      const m = store.state.data.master[id];
+      if (!m) return;
+      store.removeMasterItem(id);
+      toast(`„${m.label}" aus der Stammliste entfernt`, {
+        text: 'Widerrufen',
+        fn: () => store.undoRemoveMasterItem(id),
+      });
+    });
+  });
   view.querySelector('#stNeu').addEventListener('click', () => openStammSheet(null));
   view.querySelector('#stReset').addEventListener('click', () =>
     confirmSheet(
@@ -1396,10 +1647,12 @@ function openAktivitaetenSheet() {
 }
 
 /** Editor für einen Stammlisten-Eintrag. `id === null` heisst: neu anlegen. */
-function openStammSheet(id) {
+function openStammSheet(id, vorgabe = null) {
   const vorhanden = id ? store.state.data.master[id] : null;
   if (id && !vorhanden) return;
-  const e = vorhanden ? JSON.parse(JSON.stringify(vorhanden)) : store.LEERER_STAMM_EINTRAG();
+  const e = vorhanden
+    ? JSON.parse(JSON.stringify(vorhanden))
+    : { ...store.LEERER_STAMM_EINTRAG(), ...(vorgabe ?? {}) };
 
   const zeichne = (root) => {
     const proNacht = e.qtyMode === 'pronacht';
@@ -1520,19 +1773,27 @@ function openStammSheet(id) {
      * Eintrag dadurch zum Behälter wird oder wieder ein einfacher.
      */
     const liste = b.querySelector('#sTeile');
-    const teileLesen = () =>
-      [...liste.querySelectorAll('.teil-zeile')].map((z) => ({
-        label: z.querySelector('.teil-label').value.trim(),
-        qty: Number(z.querySelector('.teil-qty').value) || 1,
-        pronacht: z.querySelector('.teil-pn').classList.contains('is-active'),
-      }));
+    const zeileLesen = (z) => ({
+      label: z.querySelector('.teil-label').value.trim(),
+      qty: Number(z.querySelector('.teil-qty').value) || 1,
+      pronacht: z.querySelector('.teil-pn').classList.contains('is-active'),
+      plus: Number(z.querySelector('.teil-plus')?.value) || 0,
+      cap: Number(z.querySelector('.teil-cap')?.value) || null,
+    });
+    const teileLesen = () => [...liste.querySelectorAll('.teil-block')].map(zeileLesen);
     const uebernehmen = () => (e.teile = teileLesen().filter((t) => t.label));
 
     const wireZeile = (z) => {
-      z.querySelector('.teil-label').addEventListener('input', uebernehmen);
-      z.querySelector('.teil-qty').addEventListener('input', uebernehmen);
-      z.querySelector('.teil-pn').addEventListener('click', (ev) => {
-        ev.currentTarget.classList.toggle('is-active');
+      z.querySelectorAll('input').forEach((f) => f.addEventListener('input', uebernehmen));
+      z.querySelector('.teil-pn').addEventListener('click', () => {
+        // Umschalten blendet Zuschlag und Maximum ein oder aus: Zeile neu bauen.
+        const daten = zeileLesen(z);
+        daten.pronacht = !daten.pronacht;
+        const huelle = document.createElement('div');
+        huelle.innerHTML = teilZeile(daten);
+        const neu = huelle.firstElementChild;
+        z.replaceWith(neu);
+        wireZeile(neu);
         uebernehmen();
       });
       z.querySelector('.teil-del').addEventListener('click', () => {
@@ -1542,7 +1803,7 @@ function openStammSheet(id) {
         if (warBehaelter && !e.teile.length) zeichne(root);
       });
     };
-    liste.querySelectorAll('.teil-zeile').forEach(wireZeile);
+    liste.querySelectorAll('.teil-block').forEach(wireZeile);
 
     b.querySelector('#sTeilNeu').addEventListener('click', () => {
       const vorherLeer = !e.teile.length;
