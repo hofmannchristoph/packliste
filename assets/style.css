@@ -40,6 +40,13 @@
 
 * { box-sizing: border-box; }
 
+/*
+ * `hidden` muss immer gewinnen. Ohne diese Regel hebelt jeder Klassenselektor
+ * mit eigenem `display` das eingebaute [hidden] aus – so blieb der Toast
+ * stehen, nachdem er für den Widerrufen-Knopf auf Flex umgestellt wurde.
+ */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   padding: 0;
@@ -680,7 +687,6 @@ input:focus, select:focus, textarea:focus {
   align-items: flex-end;
   justify-content: center;
 }
-.sheet-backdrop[hidden] { display: none; }
 
 .sheet {
   width: 100%;

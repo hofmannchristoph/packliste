@@ -49,7 +49,7 @@ export async function connect() {
   }
   setStatus('connecting', 'Verbinde …');
   try {
-    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.45.4');
+    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.110.2');
     client = createClient(state.config.url.replace(/\/+$/, ''), state.config.key, {
       auth: { persistSession: false },
       realtime: { params: { eventsPerSecond: 5 } },

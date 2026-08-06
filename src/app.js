@@ -162,7 +162,12 @@ function wischbar(el, onDelete) {
       }
       entschieden = true;
       el.classList.add('wischt');
-      el.setPointerCapture?.(e.pointerId);
+      // Wirft, wenn kein aktiver Zeiger zur ID gehört – die Geste läuft ohne.
+      try {
+        el.setPointerCapture?.(e.pointerId);
+      } catch {
+        /* kein Zeiger zum Einfangen */
+      }
     }
     dx = ax;
     const weit = Math.abs(dx) >= SCHWELLE;
@@ -234,7 +239,11 @@ function griffZiehen() {
     y0 = e.clientY;
     dy = 0;
     ziehen = true;
-    griff.setPointerCapture?.(e.pointerId);
+    try {
+      griff.setPointerCapture?.(e.pointerId);
+    } catch {
+      /* kein Zeiger zum Einfangen */
+    }
     sheet.style.transition = '';
   });
   griff.addEventListener('pointermove', (e) => {
