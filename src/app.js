@@ -2028,7 +2028,11 @@ function renderSync() {
 
     <p class="hint">Einrichtung: Supabase-Projekt anlegen, <code class="code">supabase/schema.sql</code> im
       SQL-Editor ausführen, dann URL und Anon-Key hier eintragen. Details in der README.</p>
+
+    <p class="hint fassung">Fassung <span id="fassung">…</span></p>
   `;
+
+  zeigeFassung();
 
   view.querySelector('#sSave').addEventListener('click', async () => {
     store.saveConfig({
@@ -2068,6 +2072,25 @@ function renderSync() {
       toast(String(err?.message ?? err));
     }
   });
+}
+
+/**
+ * Welche Fassung läuft gerade?
+ *
+ * Quelle ist der Name des Service-Worker-Caches – der entspricht genau dem
+ * Stand, den dieses Gerät geladen hat. Damit gibt es keine zweite Stelle, die
+ * man beim Veröffentlichen zu ändern vergessen könnte.
+ */
+async function zeigeFassung() {
+  const feld = $('#fassung');
+  if (!feld) return;
+  try {
+    const namen = await caches.keys();
+    const treffer = namen.find((n) => n.startsWith('packliste-'));
+    feld.textContent = treffer ? treffer.replace('packliste-', '') : 'Entwicklung (kein Cache)';
+  } catch {
+    feld.textContent = 'unbekannt';
+  }
 }
 
 function registerServiceWorker() {

@@ -1,6 +1,11 @@
-/* Service Worker: App-Shell offline verfügbar halten. */
+/*
+ * Service Worker: App-Shell offline verfügbar halten.
+ *
+ * VERSION ist zugleich die Fassung, die die App unter Sync anzeigt – sie liest
+ * den Namen dieses Caches aus. Bei jeder Veröffentlichung hochzählen.
+ */
 
-const VERSION = 'packliste-v17';
+const VERSION = 'packliste-v18';
 const SHELL = [
   './',
   'index.html',
