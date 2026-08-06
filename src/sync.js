@@ -16,6 +16,7 @@ import {
   state,
   mergeTrips,
   mergeHaushalt,
+  uebernehmeHaushalt,
   tripRevision,
   haushaltRevision,
   persist,
@@ -153,7 +154,11 @@ export async function joinHousehold(code) {
     throw new Error('Kein Haushalt mit diesem Code gefunden');
   }
   state.data.householdId = code;
-  applyRemote(data.data);
+  // Übernehmen statt zusammenführen – siehe uebernehmeHaushalt().
+  uebernehmeHaushalt(data.data);
+  pushedRev.set(code, haushaltRevision());
+  persist();
+  emit();
   await pullTrips(data.data.tripIds ?? []);
   const erste = (data.data.tripIds ?? []).find((id) => state.data.trips[id]);
   if (erste && !state.data.activeTripId) state.data.activeTripId = erste;

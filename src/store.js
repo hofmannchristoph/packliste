@@ -523,6 +523,30 @@ export function mergeTrips(local, remote) {
   };
 }
 
+/**
+ * Beim Beitreten den Haushalt vollständig übernehmen statt zusammenzuführen.
+ *
+ * Zusammenführen wäre hier falsch: Das beitretende Gerät hat beim ersten Start
+ * seine eigene Stammliste ausgesät, deren Zeitstempel jünger sind als alles,
+ * was auf dem anderen Gerät gepflegt wurde. Pro Eintrag würde also die
+ * unberührte Vorlage gewinnen und die echten Anpassungen überschreiben.
+ * Eigene Reisen bleiben erhalten, die sind ja gewollt.
+ */
+export function uebernehmeHaushalt(row) {
+  if (row.master) {
+    state.data.master = JSON.parse(JSON.stringify(row.master));
+    state.data.masterUpdatedAt = row.masterUpdatedAt ?? Date.now();
+  }
+  if (row.bereiche) {
+    state.data.bereiche = JSON.parse(JSON.stringify(row.bereiche));
+    state.data.bereicheUpdatedAt = row.bereicheUpdatedAt ?? Date.now();
+  }
+  if (row.aktivitaeten) {
+    state.data.aktivitaeten = JSON.parse(JSON.stringify(row.aktivitaeten));
+    state.data.aktivitaetenUpdatedAt = row.aktivitaetenUpdatedAt ?? Date.now();
+  }
+}
+
 /** Stammliste, Bereiche und Aktivitäten aus der Haushalt-Zeile übernehmen. */
 export function mergeHaushalt(row) {
   state.data.master = mergeById(state.data.master, row.master);
