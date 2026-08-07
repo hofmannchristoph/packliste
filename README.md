@@ -16,7 +16,7 @@ Packliste für die Familie Hofmann. Eine Reise wird angelegt mit **Art, Anzahl N
 
 Startbildschirm ist die Liste der Reisen mit Packstand. Es gibt keine automatisch angelegte Reise – man legt sie an, sie bleibt in der Liste und lässt sich später duplizieren oder archivieren.
 
-Ein Tipp auf die Karte öffnet die Packliste. Alles Weitere – Angaben ändern, duplizieren, archivieren, löschen – steckt hinter dem **⋯** in der Ecke der Karte. Über eine Karte wischen löscht die Reise, mit *Widerrufen* für acht Sekunden.
+Ein Tipp auf die Karte öffnet die Packliste. Alles Weitere – Angaben ändern, duplizieren, archivieren, löschen – steckt hinter dem **⋯** in der Ecke der Karte. Nach links über eine Karte wischen legt einen roten **Löschen** frei, der noch angetippt werden muss – eine Reise mit Dutzenden Häkchen soll nicht an einer einzigen Handbewegung hängen. Danach bleiben acht Sekunden zum *Widerrufen*. Einzelne Zeilen in der Packliste und der Stammliste löschen weiterhin direkt beim Wischen; auch sie reagieren nur nach links.
 
 Löschen hinterlässt einen **Grabstein**, der selbst synchronisiert wird: Ohne ihn könnte das andere Gerät nicht unterscheiden zwischen „gelöscht" und „kenne ich noch nicht" – und würde die Reise beim nächsten Abgleich wieder eintragen. Der Grabstein trägt einen Zeitstempel und den Zustand gelöscht oder wiederhergestellt, damit auch das Widerrufen auf dem anderen Gerät ankommt.
 

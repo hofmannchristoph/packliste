@@ -508,12 +508,48 @@ h2.section {
   touch-action: pan-y;
 }
 .reise-karte.is-aktiv { border-color: var(--ink); }
-.reise-karte.wischt { position: relative; z-index: 1; }
+.reise-karte.wischt,
+.reise-karte.ist-offen { position: relative; z-index: 1; }
 .reise-karte.loescht {
   background: color-mix(in srgb, var(--danger) 12%, var(--surface));
   border-color: var(--danger);
 }
 .reise-karte.loescht .reise-name { color: var(--danger); }
+
+/*
+ * Wischen nach links zieht einen Löschen-Knopf von rechts herein; erst sein
+ * Antippen löscht. Der Knopf nimmt Breite weg, statt sich unter die Karte zu
+ * legen – so bleiben Symbol und Name lesbar, solange man noch entscheidet.
+ */
+.wisch-huelle {
+  display: flex;
+  overflow: hidden;
+  border-radius: var(--r-m);
+}
+.wisch-huelle > .reise-karte {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.wisch-loeschen {
+  flex: 0 0 auto;
+  width: 0;
+  padding: 0;
+  overflow: hidden;
+  color: #fff;
+  background: var(--danger);
+  border: 0;
+  border-radius: 0 var(--r-m) var(--r-m) 0;
+}
+.wisch-loeschen > span {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  width: 108px;
+  height: 100%;
+  font-size: 15px;
+  font-weight: 600;
+}
 
 /* Die ganze Fläche öffnet die Liste; das Menü sitzt daneben. */
 .reise-open {

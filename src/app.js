@@ -120,27 +120,68 @@ function toast(msg, aktion = null, ms = aktion ? 5000 : 2400) {
  * damit das Scrollen unbeeinträchtigt bleibt. Erst jenseits der Schwelle wird
  * gelöscht – und auch dann nur mit einem Widerrufen-Knopf.
  */
-function wischbar(el, onDelete) {
-  const SCHWELLE = 88;
+function wischbar(el, onDelete, { bestaetigen = false } = {}) {
+  const SCHWELLE = bestaetigen ? 56 : 88;
+  const OFFEN = 108;
   let x0 = 0;
   let y0 = 0;
   let dx = 0;
   let ziehen = false;
   let entschieden = false;
   let geloescht = false;
+  let offen = false;
+
+  const knopf = () => el.parentElement?.querySelector('.wisch-loeschen');
 
   const zuruecksetzen = () => {
     el.style.transition = 'transform .18s ease, opacity .18s ease';
     el.style.transform = '';
     el.style.opacity = '';
-    el.classList.remove('wischt', 'loescht');
+    el.classList.remove('wischt', 'loescht', 'ist-offen');
+    offen = false;
+    const k = knopf();
+    if (k) {
+      k.style.transition = 'width .18s ease';
+      k.style.width = '0px';
+      setTimeout(() => {
+        if (!offen) k.hidden = true;
+        k.style.transition = '';
+      }, 200);
+    }
     setTimeout(() => (el.style.transition = ''), 200);
+  };
+
+  /**
+   * Bei Reisen wächst stattdessen ein Löschen-Knopf von rechts herein und die
+   * Karte wird schmaler. Sie wegzuschieben würde Symbol und Name aus dem Bild
+   * tragen – ausgerechnet das, was man vor dem Bestätigen sehen will.
+   */
+  const aufschieben = () => {
+    offen = true;
+    el.classList.add('ist-offen');
+    el.classList.remove('loescht');
+    const k = knopf();
+    if (!k) return;
+    k.hidden = false;
+    k.style.transition = 'width .18s ease';
+    k.style.width = `${OFFEN}px`;
+    setTimeout(() => (k.style.transition = ''), 200);
+    k.onclick = (e) => {
+      e.stopPropagation();
+      onDelete();
+    };
   };
 
   el.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     // Kästchen, Stift und Eingabefelder behalten ihre eigene Bedienung.
     if (e.target.closest('.box-btn, .item-more, input, textarea, select')) return;
+    // Steht der Löschen-Knopf offen, schliesst die nächste Berührung ihn wieder.
+    if (offen) {
+      entschieden = true;
+      zuruecksetzen();
+      return;
+    }
     x0 = e.clientX;
     y0 = e.clientY;
     dx = 0;
@@ -160,6 +201,15 @@ function wischbar(el, onDelete) {
         ziehen = false;
         return;
       }
+      /*
+       * Nur nach links, wie bei den Apple-Apps. Nach rechts zu wischen ist beim
+       * Blättern und beim Zurück-Geste-Rand zu leicht ausgelöst – und wer nach
+       * rechts zieht, meint fast nie „löschen".
+       */
+      if (ax > 0) {
+        ziehen = false;
+        return;
+      }
       entschieden = true;
       el.classList.add('wischt');
       // Wirft, wenn kein aktiver Zeiger zur ID gehört – die Geste läuft ohne.
@@ -169,25 +219,36 @@ function wischbar(el, onDelete) {
         /* kein Zeiger zum Einfangen */
       }
     }
-    dx = ax;
-    const weit = Math.abs(dx) >= SCHWELLE;
-    el.classList.toggle('loescht', weit);
-    el.style.transform = `translateX(${dx}px)`;
-    el.style.opacity = String(Math.max(0.35, 1 - Math.abs(dx) / 320));
+    // Nie über den Ausgangspunkt hinaus nach rechts.
+    dx = Math.min(0, ax);
+    if (bestaetigen) {
+      const k = knopf();
+      if (k) {
+        k.hidden = false;
+        k.style.width = `${Math.min(-dx, OFFEN)}px`;
+      }
+    } else {
+      el.classList.toggle('loescht', -dx >= SCHWELLE);
+      el.style.opacity = String(Math.max(0.35, 1 + dx / 320));
+      el.style.transform = `translateX(${dx}px)`;
+    }
     e.preventDefault();
   });
 
   const ende = () => {
     if (!ziehen) return;
     ziehen = false;
-    if (entschieden && Math.abs(dx) >= SCHWELLE) {
+    if (!entschieden) return;
+    if (-dx < SCHWELLE) {
+      zuruecksetzen();
+    } else if (bestaetigen) {
+      aufschieben();
+    } else {
       geloescht = true;
       el.style.transition = 'transform .16s ease, opacity .16s ease';
-      el.style.transform = `translateX(${dx > 0 ? 400 : -400}px)`;
+      el.style.transform = 'translateX(-400px)';
       el.style.opacity = '0';
       setTimeout(onDelete, 130);
-    } else if (entschieden) {
-      zuruecksetzen();
     }
   };
   el.addEventListener('pointerup', ende);
@@ -430,7 +491,8 @@ function renderReisen() {
 
   const karte = (t) => {
     const pr = progress(t);
-    return `<div class="reise-karte ${t.id === store.state.data.activeTripId ? 'is-aktiv' : ''}">
+    return `<div class="wisch-huelle">
+      <div class="reise-karte ${t.id === store.state.data.activeTripId ? 'is-aktiv' : ''}">
       <button class="reise-open" data-open="${esc(t.id)}">
         ${iconTile(ART_ICONS[t.params.art] ?? 'bag')}
         <span class="reise-text">
@@ -445,6 +507,10 @@ function renderReisen() {
         <span class="progress-bar"><span class="progress-fill" style="width:${pr.pct}%"></span></span>
         <span class="reise-sub">${pr.done}/${pr.total}</span>
       </div>
+      </div>
+      <button class="wisch-loeschen" hidden>
+        <span>${icon('trash', 18)} Löschen</span>
+      </button>
     </div>`;
   };
 
@@ -472,21 +538,29 @@ function renderReisen() {
     b.addEventListener('click', () => openReiseSheet(b.dataset.more))
   );
 
-  // Wischen löscht die Reise – widerrufbar, auch auf dem anderen Gerät.
+  /*
+   * Nach links wischen legt einen Löschen-Knopf frei, der noch angetippt werden
+   * muss. Eine Reise mit Dutzenden Häkchen soll nicht an einer einzigen
+   * Handbewegung hängen – anders als eine einzelne Zeile in der Liste.
+   */
   view.querySelectorAll('.reise-karte').forEach((karte) =>
-    wischbar(karte, () => {
-      const id = karte.querySelector('[data-open]')?.dataset.open;
-      const trip = store.state.data.trips[id];
-      if (!trip) return;
-      const kopie = JSON.parse(JSON.stringify(trip));
-      const pr = progress(trip);
-      store.deleteTrip(id);
-      toast(
-        `„${kopie.name}" gelöscht${pr.done ? ` · ${pr.done} Häkchen` : ''}`,
-        { text: 'Widerrufen', fn: () => store.undoDeleteTrip(kopie) },
-        8000
-      );
-    })
+    wischbar(
+      karte,
+      () => {
+        const id = karte.querySelector('[data-open]')?.dataset.open;
+        const trip = store.state.data.trips[id];
+        if (!trip) return;
+        const kopie = JSON.parse(JSON.stringify(trip));
+        const pr = progress(trip);
+        store.deleteTrip(id);
+        toast(
+          `„${kopie.name}" gelöscht${pr.done ? ` · ${pr.done} Häkchen` : ''}`,
+          { text: 'Widerrufen', fn: () => store.undoDeleteTrip(kopie) },
+          8000
+        );
+      },
+      { bestaetigen: true }
+    )
   );
 }
 
