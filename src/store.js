@@ -61,6 +61,9 @@ function emptyState() {
     master: seedMaster(now),
     masterUpdatedAt: now,
     trips: {},
+    // Gelöschte Reisen als Grabstein, damit sie nirgends wieder auftauchen.
+    geloescht: {},
+    geloeschtUpdatedAt: now,
     activeTripId: null,
   };
 }
@@ -109,6 +112,10 @@ function migriere(daten) {
   d.trips = Object.fromEntries(
     Object.entries(d.trips ?? {}).map(([id, t]) => [id, { ...t, master: stamm(t.master) }])
   );
+  if (!d.geloescht) {
+    d.geloescht = {};
+    d.geloeschtUpdatedAt = now;
+  }
   d.version = 3;
   return d;
 }
@@ -186,11 +193,31 @@ export function createTrip({ name, params }) {
   return trip;
 }
 
+/**
+ * Reise löschen.
+ *
+ * Es genügt nicht, sie lokal zu entfernen: das andere Gerät hätte sie noch
+ * und würde sie beim nächsten Abgleich wieder eintragen. Darum bleibt ein
+ * Grabstein zurück, der selbst synchronisiert wird.
+ */
 export function deleteTrip(id) {
   delete state.data.trips[id];
+  state.data.geloescht[id] = Date.now();
+  state.data.geloeschtUpdatedAt = Date.now();
   if (state.data.activeTripId === id) state.data.activeTripId = null;
   persist();
   emit();
+}
+
+/** Wurde diese Reise irgendwo gelöscht? */
+export const istGeloescht = (id) => Boolean(state.data.geloescht?.[id]);
+
+/** Reisen entfernen, für die inzwischen ein Grabstein vorliegt. */
+function grabsteineAnwenden() {
+  for (const id of Object.keys(state.data.geloescht ?? {})) {
+    if (state.data.trips[id]) delete state.data.trips[id];
+    if (state.data.activeTripId === id) state.data.activeTripId = null;
+  }
 }
 
 export function setTripMeta(tripId, patch) {
@@ -533,6 +560,14 @@ export function mergeTrips(local, remote) {
  * Eigene Reisen bleiben erhalten, die sind ja gewollt.
  */
 export function uebernehmeHaushalt(row) {
+  if (row.geloescht) {
+    state.data.geloescht = { ...state.data.geloescht, ...row.geloescht };
+    state.data.geloeschtUpdatedAt = Math.max(
+      state.data.geloeschtUpdatedAt ?? 0,
+      row.geloeschtUpdatedAt ?? 0
+    );
+    grabsteineAnwenden();
+  }
   if (row.master) {
     state.data.master = JSON.parse(JSON.stringify(row.master));
     state.data.masterUpdatedAt = row.masterUpdatedAt ?? Date.now();
@@ -547,8 +582,18 @@ export function uebernehmeHaushalt(row) {
   }
 }
 
-/** Stammliste, Bereiche und Aktivitäten aus der Haushalt-Zeile übernehmen. */
+/** Stammliste, Bereiche, Aktivitäten und Grabsteine zusammenführen. */
 export function mergeHaushalt(row) {
+  if (row.geloescht) {
+    for (const [id, ts] of Object.entries(row.geloescht)) {
+      state.data.geloescht[id] = Math.max(state.data.geloescht[id] ?? 0, ts);
+    }
+    state.data.geloeschtUpdatedAt = Math.max(
+      state.data.geloeschtUpdatedAt ?? 0,
+      row.geloeschtUpdatedAt ?? 0
+    );
+    grabsteineAnwenden();
+  }
   state.data.master = mergeById(state.data.master, row.master);
   state.data.masterUpdatedAt = Math.max(state.data.masterUpdatedAt ?? 0, row.masterUpdatedAt ?? 0);
   if (row.bereiche) {
@@ -581,7 +626,8 @@ export function haushaltRevision() {
   let max = Math.max(
     state.data.masterUpdatedAt ?? 0,
     state.data.bereicheUpdatedAt ?? 0,
-    state.data.aktivitaetenUpdatedAt ?? 0
+    state.data.aktivitaetenUpdatedAt ?? 0,
+    state.data.geloeschtUpdatedAt ?? 0
   );
   for (const sammlung of [state.data.master, state.data.bereiche, state.data.aktivitaeten]) {
     for (const it of Object.values(sammlung ?? {})) {

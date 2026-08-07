@@ -17,6 +17,7 @@ import {
   mergeTrips,
   mergeHaushalt,
   uebernehmeHaushalt,
+  istGeloescht,
   tripRevision,
   haushaltRevision,
   persist,
@@ -112,17 +113,20 @@ function applyRemote(row) {
   if (row.kind === 'household') {
     mergeHaushalt(row);
     // Reisen, die das andere Gerät kennt, nachladen.
-    const fehlend = (row.tripIds ?? []).filter((id) => !state.data.trips[id]);
+    const fehlend = (row.tripIds ?? []).filter((id) => !state.data.trips[id] && !istGeloescht(id));
     persist();
     emit();
     if (fehlend.length) pullTrips(fehlend).catch(() => {});
     // Kennt die Gegenseite Reisen von uns noch nicht, Verzeichnis nachtragen.
+    // Gelöschte zählen nicht mit, sonst holt man sie sich gegenseitig zurück.
     const bekannt = new Set(row.tripIds ?? []);
-    const unbekannt = Object.keys(state.data.trips).some((id) => !bekannt.has(id));
+    const unbekannt = Object.keys(state.data.trips).some(
+      (id) => !bekannt.has(id) && !istGeloescht(id)
+    );
     if (unbekannt || haushaltRevision() > (row.rev ?? row.masterUpdatedAt ?? 0)) pushHousehold();
     return;
   }
-  if (!row.id) return;
+  if (!row.id || istGeloescht(row.id)) return;
   const merged = mergeTrips(state.data.trips[row.id], row);
   state.data.trips[merged.id] = merged;
   pushedRev.set(merged.id, Math.max(pushedRev.get(merged.id) ?? 0, tripRevision(row)));
@@ -132,8 +136,9 @@ function applyRemote(row) {
 }
 
 async function pullTrips(ids) {
-  if (!client || !ids.length) return;
-  const { data, error } = await client.from(TABLE).select('id,data').in('id', ids);
+  const offen = ids.filter((id) => !istGeloescht(id));
+  if (!client || !offen.length) return;
+  const { data, error } = await client.from(TABLE).select('id,data').in('id', offen);
   if (error) throw error;
   for (const r of data ?? []) applyRemote(r.data);
 }
@@ -216,6 +221,8 @@ export function pushHousehold(delay = 600) {
           bereicheUpdatedAt: state.data.bereicheUpdatedAt,
           aktivitaeten: state.data.aktivitaeten,
           aktivitaetenUpdatedAt: state.data.aktivitaetenUpdatedAt,
+          geloescht: state.data.geloescht,
+          geloeschtUpdatedAt: state.data.geloeschtUpdatedAt,
           tripIds: Object.keys(state.data.trips),
         });
         pushedRev.set(id, rev);
@@ -235,7 +242,7 @@ export function push(tripId, delay = 500) {
     tripId,
     setTimeout(async () => {
       const trip = state.data.trips[tripId];
-      if (!trip) return;
+      if (!trip || istGeloescht(tripId)) return;
       const rev = tripRevision(trip);
       if (pushedRev.has(tripId) && rev <= pushedRev.get(tripId)) return;
       if (!client) {
