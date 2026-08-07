@@ -471,6 +471,23 @@ function renderReisen() {
   view.querySelectorAll('[data-more]').forEach((b) =>
     b.addEventListener('click', () => openReiseSheet(b.dataset.more))
   );
+
+  // Wischen löscht die Reise – widerrufbar, auch auf dem anderen Gerät.
+  view.querySelectorAll('.reise-karte').forEach((karte) =>
+    wischbar(karte, () => {
+      const id = karte.querySelector('[data-open]')?.dataset.open;
+      const trip = store.state.data.trips[id];
+      if (!trip) return;
+      const kopie = JSON.parse(JSON.stringify(trip));
+      const pr = progress(trip);
+      store.deleteTrip(id);
+      toast(
+        `„${kopie.name}" gelöscht${pr.done ? ` · ${pr.done} Häkchen` : ''}`,
+        { text: 'Widerrufen', fn: () => store.undoDeleteTrip(kopie) },
+        8000
+      );
+    })
+  );
 }
 
 function openReiseSheet(id) {

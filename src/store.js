@@ -115,6 +115,15 @@ function migriere(daten) {
   if (!d.geloescht) {
     d.geloescht = {};
     d.geloeschtUpdatedAt = now;
+  } else {
+    // Frühere Grabsteine waren blosse Zeitstempel; jetzt tragen sie zusätzlich,
+    // ob gelöscht oder wiederhergestellt.
+    d.geloescht = Object.fromEntries(
+      Object.entries(d.geloescht).map(([id, e]) => [
+        id,
+        typeof e === 'number' ? { weg: true, ts: e } : e,
+      ])
+    );
   }
   d.version = 3;
   return d;
@@ -201,20 +210,40 @@ export function createTrip({ name, params }) {
  * Grabstein zurück, der selbst synchronisiert wird.
  */
 export function deleteTrip(id) {
+  const now = Date.now();
   delete state.data.trips[id];
-  state.data.geloescht[id] = Date.now();
-  state.data.geloeschtUpdatedAt = Date.now();
+  state.data.geloescht[id] = { weg: true, ts: now };
+  state.data.geloeschtUpdatedAt = now;
   if (state.data.activeTripId === id) state.data.activeTripId = null;
   persist();
   emit();
 }
 
-/** Wurde diese Reise irgendwo gelöscht? */
-export const istGeloescht = (id) => Boolean(state.data.geloescht?.[id]);
+/**
+ * Löschen zurücknehmen.
+ *
+ * Der Grabstein wird nicht entfernt, sondern mit jüngerem Zeitstempel auf
+ * „doch nicht gelöscht" gesetzt. Nur so erfährt das andere Gerät davon – ein
+ * verschwundener Grabstein wäre für die Gegenseite nicht von einem
+ * unbekannten zu unterscheiden.
+ */
+export function undoDeleteTrip(kopie) {
+  if (!kopie?.id) return;
+  const now = Date.now();
+  state.data.trips[kopie.id] = JSON.parse(JSON.stringify(kopie));
+  state.data.geloescht[kopie.id] = { weg: false, ts: now };
+  state.data.geloeschtUpdatedAt = now;
+  persist();
+  emit();
+}
 
-/** Reisen entfernen, für die inzwischen ein Grabstein vorliegt. */
+/** Wurde diese Reise gelöscht? */
+export const istGeloescht = (id) => state.data.geloescht?.[id]?.weg === true;
+
+/** Reisen entfernen, für die ein gültiger Grabstein vorliegt. */
 function grabsteineAnwenden() {
-  for (const id of Object.keys(state.data.geloescht ?? {})) {
+  for (const [id, eintrag] of Object.entries(state.data.geloescht ?? {})) {
+    if (!eintrag?.weg) continue;
     if (state.data.trips[id]) delete state.data.trips[id];
     if (state.data.activeTripId === id) state.data.activeTripId = null;
   }
@@ -585,8 +614,9 @@ export function uebernehmeHaushalt(row) {
 /** Stammliste, Bereiche, Aktivitäten und Grabsteine zusammenführen. */
 export function mergeHaushalt(row) {
   if (row.geloescht) {
-    for (const [id, ts] of Object.entries(row.geloescht)) {
-      state.data.geloescht[id] = Math.max(state.data.geloescht[id] ?? 0, ts);
+    for (const [id, fremd] of Object.entries(row.geloescht)) {
+      const eigen = state.data.geloescht[id];
+      if (!eigen || (fremd?.ts ?? 0) > (eigen.ts ?? 0)) state.data.geloescht[id] = fremd;
     }
     state.data.geloeschtUpdatedAt = Math.max(
       state.data.geloeschtUpdatedAt ?? 0,

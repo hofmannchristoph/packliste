@@ -504,8 +504,16 @@ h2.section {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--r-m);
+  /* Senkrecht scrollt der Browser, waagrecht übernimmt die Wisch-Geste. */
+  touch-action: pan-y;
 }
 .reise-karte.is-aktiv { border-color: var(--ink); }
+.reise-karte.wischt { position: relative; z-index: 1; }
+.reise-karte.loescht {
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  border-color: var(--danger);
+}
+.reise-karte.loescht .reise-name { color: var(--danger); }
 
 /* Die ganze Fläche öffnet die Liste; das Menü sitzt daneben. */
 .reise-open {
