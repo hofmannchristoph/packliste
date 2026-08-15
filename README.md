@@ -205,3 +205,24 @@ Strenger geht es mit Supabase **Authentication**: dann die Policies in `schema.s
 ## Lizenz
 
 MIT
+
+### Stammliste als Tabelle
+
+Die Struktur der Liste – wer bekommt was, unter welchen Bedingungen, in welcher
+Menge – lässt sich in einer Tabelle in Minuten umbauen und in der App nur Zeile
+für Zeile. Darum führt unter *Stammliste → Als Tabelle bearbeiten* ein Weg
+hinaus und wieder herein: kopieren, in Excel oder Numbers überarbeiten,
+zurückspielen. Eingelesen wird sowohl das, was Excel beim Kopieren in die
+Zwischenablage legt, als auch eine gespeicherte CSV-Datei.
+
+Bereiche und Aktivitäten entstehen dabei aus dem Blatt selbst – ein Bereich ohne
+Einträge bewirkt ohnehin nichts, also gibt es nichts doppelt zu pflegen.
+Reisearten, Jahreszeiten, Regionen und Personen sind dagegen fest: an ihnen
+hängt Logik, ein Tippfehler soll dort auffallen statt still eine vierte
+Reiseart anzulegen. Solange auch nur ein Fehler im Blatt steht, wird nichts
+übernommen; die Meldungen nennen die Zeilennummer aus Excel.
+
+Behälter stehen vor ihren Teilen. Ein Teil trägt in der Spalte *Teil von* den
+Schlüssel seines Behälters – oder ein `x`, dann gehört es zum Eintrag darüber.
+Der Export schreibt immer den Schlüssel, damit ein Sortieren in Excel die
+Zuordnung nicht zerreisst.

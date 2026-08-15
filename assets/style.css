@@ -916,13 +916,29 @@ code.code {
   word-break: break-all;
 }
 
-textarea#exp {
+textarea#exp,
+textarea#tbEingabe {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
   line-height: 1.55;
   letter-spacing: 0;
   resize: vertical;
 }
+
+/* Befund nach dem Einlesen einer Tabelle. */
+.befund ul {
+  margin: 0;
+  padding: 4px 16px 14px 34px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.befund ul.sub {
+  padding-top: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.befund.is-fehler { border-color: var(--danger); }
+.befund.is-fehler .card-head { color: var(--danger); }
 
 :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 

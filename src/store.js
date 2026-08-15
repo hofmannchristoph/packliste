@@ -537,6 +537,81 @@ export function undoRemoveMasterItem(id) {
   emit();
 }
 
+/**
+ * Stammliste, Bereiche und Aktivitäten aus einer Tabelle übernehmen.
+ *
+ * Was im Blatt fehlt, wird als gelöscht markiert statt weggeworfen: Ein
+ * einfaches Überschreiben würde das andere Gerät beim nächsten Abgleich alle
+ * alten Einträge zurückschicken lassen – dort sind sie ja noch da und tragen
+ * einen Zeitstempel.
+ *
+ * Gibt den vorherigen Stand zurück, damit ein Fehlgriff widerrufbar bleibt.
+ */
+export function ersetzeStammliste({ master, bereiche: neueBereiche, aktivitaeten: neueAkt }) {
+  const now = Date.now();
+  const vorher = JSON.parse(
+    JSON.stringify({
+      master: state.data.master,
+      bereiche: state.data.bereiche,
+      aktivitaeten: state.data.aktivitaeten,
+    })
+  );
+
+  const master2 = {};
+  for (const [id, alt] of Object.entries(state.data.master)) {
+    master2[id] = alt.deleted ? alt : { ...alt, deleted: true, updatedAt: now };
+  }
+  for (const [id, neu] of Object.entries(master)) {
+    master2[id] = { ...LEERER_STAMM_EINTRAG(), ...neu, id, deleted: false, updatedAt: now };
+  }
+
+  const sammlung = (altSammlung, neuListe) => {
+    const out = {};
+    for (const [id, alt] of Object.entries(altSammlung)) {
+      out[id] = alt.deleted ? alt : { ...alt, deleted: true, updatedAt: now };
+    }
+    neuListe.forEach((e, idx) => {
+      out[e.id] = { ...(altSammlung[e.id] ?? {}), ...e, order: idx, deleted: false, updatedAt: now };
+    });
+    return out;
+  };
+
+  state.data.master = master2;
+  state.data.masterUpdatedAt = now;
+  state.data.bereiche = sammlung(state.data.bereiche, neueBereiche);
+  state.data.bereicheUpdatedAt = now;
+  state.data.aktivitaeten = sammlung(state.data.aktivitaeten, neueAkt);
+  state.data.aktivitaetenUpdatedAt = now;
+  persist();
+  emit();
+  return vorher;
+}
+
+/**
+ * Einen mit `ersetzeStammliste` erhaltenen Stand wieder herstellen.
+ *
+ * Was der Import angelegt hat, wird dabei als gelöscht markiert – aus dem
+ * gleichen Grund, aus dem der Import nichts wegwirft.
+ */
+export function stelleStammlisteWiederHer(vorher) {
+  if (!vorher) return;
+  const now = Date.now();
+  const zurueck = (jetzt, alt) => {
+    const out = {};
+    for (const [id, e] of Object.entries(jetzt)) out[id] = { ...e, deleted: true, updatedAt: now };
+    for (const [id, e] of Object.entries(alt)) out[id] = { ...e, updatedAt: now };
+    return out;
+  };
+  state.data.master = zurueck(state.data.master, vorher.master);
+  state.data.masterUpdatedAt = now;
+  state.data.bereiche = zurueck(state.data.bereiche, vorher.bereiche);
+  state.data.bereicheUpdatedAt = now;
+  state.data.aktivitaeten = zurueck(state.data.aktivitaeten, vorher.aktivitaeten);
+  state.data.aktivitaetenUpdatedAt = now;
+  persist();
+  emit();
+}
+
 export function resetMaster() {
   state.data.master = seedMaster();
   state.data.masterUpdatedAt = Date.now();

@@ -24,6 +24,7 @@ import {
 } from './generator.js';
 import * as store from './store.js';
 import * as sync from './sync.js';
+import { alsTabelle, leseTabelle } from './tabelle.js';
 
 const $ = (sel) => document.querySelector(sel);
 const view = $('#view');
@@ -1559,6 +1560,12 @@ function renderStammliste() {
           <span class="sub">${AKTIVITAETEN().length} Aktivitäten</span></span>
         ${icon('chevron', 18)}
       </button>
+      <button class="list-row" id="stTabelle" style="padding:15px 16px">
+        ${iconTile('doc')}
+        <span class="grow"><span>Als Tabelle bearbeiten</span><br />
+          <span class="sub">In Excel umbauen und zurückspielen</span></span>
+        ${icon('chevron', 18)}
+      </button>
     </section>
     <div class="search-wrap">${icon('search', 20)}
       <input type="text" id="stSuche" value="${esc(stammFilter.suche)}" placeholder="Eintrag suchen" />
@@ -1580,6 +1587,7 @@ function renderStammliste() {
 
   view.querySelector('#stBereiche').addEventListener('click', openBereicheSheet);
   view.querySelector('#stAktivitaeten').addEventListener('click', openAktivitaetenSheet);
+  view.querySelector('#stTabelle').addEventListener('click', openTabelleSheet);
 
   const suchfeld = view.querySelector('#stSuche');
   suchfeld.addEventListener('input', () => {
@@ -1624,6 +1632,165 @@ function renderStammliste() {
       }
     )
   );
+}
+
+// ---------------------------------------------------------------------------
+// Stammliste als Tabelle
+// ---------------------------------------------------------------------------
+
+/** Was gerade in der App steht, im Format von `alsTabelle`. */
+const tabellenStand = () => ({
+  master: store.state.data.master,
+  bereiche: BEREICHE(),
+  aktivitaeten: AKTIVITAETEN(),
+});
+
+/**
+ * Die Stammliste als Tabelle heraus- und wieder hineingeben.
+ *
+ * Zwei Wege hinein, weil beide ihre Momente haben: Aus Excel kopieren und hier
+ * einfügen ist am Handy und am Rechner gleich schnell und verliert nie ein
+ * Sonderzeichen. Eine Datei zu wählen ist bequemer, wenn das Blatt schon
+ * gespeichert ist.
+ */
+function openTabelleSheet() {
+  const anzahl = Object.values(store.state.data.master).filter((m) => !m.deleted).length;
+
+  openSheet(
+    {
+      body: `<h3>Als Tabelle bearbeiten</h3>
+        <p class="hint">Die ganze Stammliste als Tabelle – zum Umbauen in Excel oder Numbers.
+          Bereiche und Aktivitäten entstehen dabei aus dem Blatt selbst: Was du in die Spalte
+          schreibst und noch nicht gibt, wird angelegt.</p>
+
+        <h4 class="section" style="margin-top:18px">Heraus</h4>
+        <section class="card">
+          <button class="list-row" id="tbKopieren" style="padding:15px 16px">
+            ${iconTile('doc')}
+            <span class="grow"><span>Kopieren</span><br />
+              <span class="sub">${anzahl} Einträge – in Excel einfügen</span></span>
+          </button>
+          <button class="list-row" id="tbDatei" style="padding:15px 16px">
+            ${iconTile('basket')}
+            <span class="grow"><span>Als Datei sichern</span><br />
+              <span class="sub">CSV, öffnet sich in Excel</span></span>
+          </button>
+        </section>
+
+        <h4 class="section" style="margin-top:18px">Zurück</h4>
+        <p class="hint">In Excel alles markieren (auch die Kopfzeile), kopieren, hier einfügen.
+          Oder eine gespeicherte Datei wählen.</p>
+        <textarea id="tbEingabe" rows="5" placeholder="Tabelle hier einfügen"
+          style="width:100%;font-family:ui-monospace,Menlo,monospace;font-size:12px"></textarea>
+        <div style="height:10px"></div>
+        <button class="btn" id="tbWaehlen">${icon('plus', 20)} Datei wählen</button>
+        <input type="file" id="tbFile" accept=".csv,.tsv,.txt,text/csv,text/plain" hidden />
+        <div id="tbBefund"></div>`,
+      foot: `<button class="btn primary" id="tbPruefen">Prüfen</button>
+        <button class="btn" id="tbFertig">Schliessen</button>`,
+    },
+    (root) => {
+      const eingabe = root.querySelector('#tbEingabe');
+      const befund = root.querySelector('#tbBefund');
+
+      root.querySelector('#tbKopieren').addEventListener('click', async () => {
+        const text = alsTabelle(tabellenStand(), '\t');
+        try {
+          await navigator.clipboard.writeText(text);
+          toast(`${anzahl} Einträge kopiert – in Excel einfügen`);
+        } catch {
+          // Ohne Zwischenablage-Recht bleibt der Weg über das Feld.
+          eingabe.value = text;
+          eingabe.select();
+          toast('Kopieren ging nicht – Text steht unten, von Hand kopieren');
+        }
+      });
+
+      root.querySelector('#tbDatei').addEventListener('click', () => {
+        // Semikolon und BOM, damit Excel die Datei ohne Nachfragen richtig öffnet.
+        const csv = '﻿' + alsTabelle(tabellenStand(), ';');
+        const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'stammliste.csv';
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      });
+
+      const datei = root.querySelector('#tbFile');
+      root.querySelector('#tbWaehlen').addEventListener('click', () => datei.click());
+      datei.addEventListener('change', async () => {
+        const f = datei.files?.[0];
+        if (!f) return;
+        eingabe.value = await f.text();
+        pruefen();
+      });
+
+      function pruefen() {
+        const text = eingabe.value.trim();
+        if (!text) {
+          befund.innerHTML = `<p class="hint">Erst eine Tabelle einfügen oder eine Datei wählen.</p>`;
+          return;
+        }
+        const ergebnis = leseTabelle(text, {
+          bereiche: BEREICHE(),
+          aktivitaeten: AKTIVITAETEN(),
+        });
+        zeigeBefund(befund, ergebnis);
+      }
+
+      root.querySelector('#tbPruefen').addEventListener('click', pruefen);
+      root.querySelector('#tbFertig').addEventListener('click', closeSheet);
+    }
+  );
+}
+
+/** Ergebnis des Einlesens zeigen – Fehler zuerst, Übernehmen erst wenn sauber. */
+function zeigeBefund(ziel, ergebnis) {
+  const { fehler, hinweise, anzahl } = ergebnis;
+  const alt = Object.values(store.state.data.master).filter((m) => !m.deleted).length;
+  // Der Befund steht unterhalb des Eingabefeldes – ohne Nachfassen sieht man ihn nicht.
+  const hinschauen = () => ziel.scrollIntoView({ behavior: 'smooth', block: 'end' });
+
+  if (fehler.length) {
+    ziel.innerHTML = `<div style="height:14px"></div>
+      <section class="card befund is-fehler">
+        <div class="card-head">${fehler.length} ${fehler.length === 1 ? 'Fehler' : 'Fehler'}</div>
+        <ul>${fehler.slice(0, 25).map((f) => `<li>${esc(f)}</li>`).join('')}</ul>
+        ${fehler.length > 25 ? `<p class="hint">… und ${fehler.length - 25} weitere.</p>` : ''}
+      </section>
+      <p class="hint">Nichts wurde übernommen. Korrigier die Zeilen im Blatt und füg es nochmals ein –
+        eine halb eingelesene Stammliste wäre schlimmer als gar keine.</p>`;
+    hinschauen();
+    return;
+  }
+
+  ziel.innerHTML = `<div style="height:14px"></div>
+    <section class="card befund">
+      <div class="card-head">Bereit</div>
+      <ul>
+        <li><b>${anzahl.eintraege}</b> Einträge (bisher ${alt})</li>
+        <li><b>${anzahl.teile}</b> Teile in Behältern</li>
+        <li><b>${anzahl.bereiche}</b> Bereiche · <b>${anzahl.aktivitaeten}</b> Aktivitäten</li>
+      </ul>
+      ${hinweise.length ? `<ul class="sub">${hinweise.slice(0, 12).map((h) => `<li>${esc(h)}</li>`).join('')}</ul>` : ''}
+    </section>
+    <p class="hint">Die alte Stammliste wird ersetzt. Laufende Reisen bleiben, wie sie sind.</p>
+    <div style="height:10px"></div>
+    <button class="btn primary" id="tbUebernehmen">Stammliste ersetzen</button>`;
+
+  ziel.querySelector('#tbUebernehmen').addEventListener('click', () => {
+    const vorher = store.ersetzeStammliste(ergebnis);
+    closeSheet();
+    stammFilter.bereich = 'alle';
+    render();
+    toast(
+      `Stammliste ersetzt · ${anzahl.eintraege} Einträge`,
+      { text: 'Widerrufen', fn: () => store.stelleStammlisteWiederHer(vorher) },
+      12000
+    );
+  });
+  hinschauen();
 }
 
 // ---------------------------------------------------------------------------

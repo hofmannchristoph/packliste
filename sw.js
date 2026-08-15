@@ -5,7 +5,7 @@
  * den Namen dieses Caches aus. Bei jeder Veröffentlichung hochzählen.
  */
 
-const VERSION = 'packliste-v22';
+const VERSION = 'packliste-v23';
 const SHELL = [
   './',
   'index.html',
@@ -22,6 +22,7 @@ const SHELL = [
   'src/generator.js',
   'src/store.js',
   'src/sync.js',
+  'src/tabelle.js',
 ];
 
 self.addEventListener('install', (event) => {
