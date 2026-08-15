@@ -1,3 +1,6 @@
 .DS_Store
 node_modules/
 .claude/settings.local.json
+
+# Das Arbeitsblatt für die Stammliste – die App ist die Quelle, nicht die Datei.
+Packliste-Stammliste.xlsx
