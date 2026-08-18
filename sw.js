@@ -26,6 +26,11 @@ const SHELL = [
   'src/sync.js',
   'src/liste.js',
   'vendor/supabase-js-2.110.2.mjs',
+  'vendor/node/buffer.mjs',
+  'vendor/node/process.mjs',
+  'vendor/node/events.mjs',
+  'vendor/node/tty.mjs',
+  'vendor/node/async_hooks.mjs',
   'src/tabelle.js',
 ];
 

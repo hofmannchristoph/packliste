@@ -15,6 +15,7 @@
   --line: #e4e4e4;
   --on-ink: #ffffff;
   --danger: #c0392b;
+  --on-danger: #ffffff;
   --r-s: 8px;
   --r-m: 12px;
   --r-l: 16px;
@@ -35,6 +36,7 @@
     --line: #262626;
     --on-ink: #000000;
     --danger: #ff6b5e;
+    --on-danger: #2a0703;
   }
 }
 
@@ -115,17 +117,26 @@ button { cursor: pointer; background: none; border: 0; padding: 0; color: inheri
   font-weight: 700;
   line-height: 1.12;
   letter-spacing: -0.025em;
-  white-space: nowrap;
+  /*
+   * Zwei Zeilen sind erlaubt, danach wird gekürzt.
+   *
+   * Fest einzeilig schnitt der Titel ab, sobald jemand die Systemschrift
+   * vergrössert – aus "Campingferien Frankreich" wurde "Camping…", und der
+   * Platz darunter blieb leer.
+   */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .trip-sub {
   font-size: 14px;
   color: var(--ink-2);
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .icon-btn {
@@ -550,7 +561,11 @@ h2.section {
   width: 0;
   padding: 0;
   overflow: hidden;
-  color: #fff;
+  /*
+   * Im Dunkelmodus ist --danger ein helles Rot; weisse Schrift darauf lag bei
+   * 2.2:1. Die Schriftfarbe folgt deshalb dem Modus statt fest weiss zu sein.
+   */
+  color: var(--on-danger);
   background: var(--danger);
   border: 0;
   border-radius: 0 var(--r-m) var(--r-m) 0;
@@ -987,6 +1002,29 @@ textarea#tbEingabe {
   padding: 10px 16px;
   font-size: 14px;
   line-height: 1.45;
-  color: #fff;
+  color: var(--on-danger);
   background: var(--danger);
+}
+
+/* Nur für die Sprachausgabe: hörbar, aber nicht sichtbar. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* h1 im Kopf trägt die Titelgrösse, nicht die Vorgabe des Browsers. */
+h1.trip-name { margin: 0; }
+
+/* Was beim Ersetzen wegfällt – deutlicher als ein Hinweis, milder als ein Fehler. */
+.befund ul.verlust {
+  padding-top: 0;
+  color: var(--danger);
+  font-size: 13px;
 }

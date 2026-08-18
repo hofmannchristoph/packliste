@@ -110,7 +110,9 @@ document.querySelectorAll('.tab').forEach((btn) => {
   btn.addEventListener('click', () => setTab(btn.dataset.tab));
 });
 
-$('#btnSync').innerHTML = `${icon('sync', 20)}<span class="sync-dot" id="syncDot"></span>`;
+$('#btnSync').innerHTML =
+  `${icon('sync', 20)}<span class="sync-dot" id="syncDot"></span>` +
+  `<span class="visually-hidden" id="syncText">Sync</span>`;
 $('#tripSwitch').addEventListener('click', () => setTab('reisen'));
 $('#btnSync').addEventListener('click', () => setTab('sync'));
 
@@ -519,7 +521,7 @@ function chipsSingle(list, current, attr) {
   return list
     .map(
       (o) =>
-        `<button class="chip ${o.id === current ? 'is-active' : ''}" data-${attr}="${o.id}">${esc(o.label)}</button>`
+        `<button class="chip ${o.id === current ? 'is-active' : ''}" data-${attr}="${esc(o.id)}">${esc(o.label)}</button>`
     )
     .join('');
 }
@@ -529,7 +531,7 @@ function chipsMulti(list, selected, attr) {
   return list
     .map(
       (o) =>
-        `<button class="chip ${set.has(o.id) ? 'is-active' : ''}" data-${attr}="${o.id}">${esc(o.label)}</button>`
+        `<button class="chip ${set.has(o.id) ? 'is-active' : ''}" data-${attr}="${esc(o.id)}">${esc(o.label)}</button>`
     )
     .join('');
 }
@@ -605,6 +607,18 @@ function renderInner() {
 function renderTopbar(trip) {
   $('#syncDot').dataset.mode = store.state.syncStatus.mode;
   $('#btnSync').title = store.state.syncStatus.text;
+  /*
+   * Der Zustand stand nur in einem acht Pixel grossen Farbpunkt, und „offline"
+   * und „nur auf diesem Gerät" trugen dieselbe Farbe. Der Text steht jetzt
+   * für die Sprachausgabe daneben.
+   */
+  const stext = $('#syncText');
+  if (stext) stext.textContent = `Sync: ${store.state.syncStatus.text}`;
+  // Der offene Bereich wird angesagt, nicht nur eingefärbt.
+  document.querySelectorAll('.tab').forEach((b) => {
+    if (b.dataset.tab === tab) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+  });
 
   const zeigeReise = trip && (tab === 'liste' || tab === 'reise');
   if (!zeigeReise) {
@@ -791,7 +805,7 @@ function openNeueReise() {
 
       <div class="field"><span>Art der Reise</span>
         <div class="options" id="nrArt">${ARTEN.map(
-          (a) => `<button class="chip ${a.id === entwurf.art ? 'is-active' : ''}" data-art="${a.id}">${esc(a.label)}</button>`
+          (a) => `<button class="chip ${a.id === entwurf.art ? 'is-active' : ''}" data-art="${esc(a.id)}">${esc(a.label)}</button>`
         ).join('')}</div>
       </div>
 
@@ -933,7 +947,7 @@ function renderListe(trip) {
       ${whoChips
         .map(
           (w) =>
-            `<button class="chip ${filter.who === w.id ? 'is-active' : ''}" data-who="${w.id}">${esc(w.label)}</button>`
+            `<button class="chip ${filter.who === w.id ? 'is-active' : ''}" data-who="${esc(w.id)}">${esc(w.label)}</button>`
         )
         .join('')}
     </div>
@@ -1135,7 +1149,7 @@ function openItemSheet(trip, itemId) {
   if (!it) return;
   if (it.isContainer) return openBehaelterSheet(trip, it);
   const catOptions = BEREICHE()
-    .map((c) => `<option value="${c.id}" ${c.id === it.category ? 'selected' : ''}>${esc(c.label)}</option>`)
+    .map((c) => `<option value="${esc(c.id)}" ${c.id === it.category ? 'selected' : ''}>${esc(c.label)}</option>`)
     .join('');
   const personen = [{ id: SHARED, label: 'Gemeinsam' }, ...trippersonen(trip)];
   let gewaehltWho = it.assignee;
@@ -1267,7 +1281,7 @@ function openBehaelterSheet(trip, it) {
 }
 
 function openAddItemSheet(trip) {
-  const catOptions = BEREICHE().map((c) => `<option value="${c.id}">${esc(c.label)}</option>`).join('');
+  const catOptions = BEREICHE().map((c) => `<option value="${esc(c.id)}">${esc(c.label)}</option>`).join('');
   const personen = [{ id: SHARED, label: 'Gemeinsam' }, ...trippersonen(trip)];
   let gewaehltWho = SHARED;
   openSheet(
@@ -1640,7 +1654,7 @@ function renderStammliste() {
       ${belegteBereiche
         .map(
           (c) =>
-            `<button class="chip ${stammFilter.bereich === c.id ? 'is-active' : ''}" data-bereich="${c.id}">${esc(c.label)}</button>`
+            `<button class="chip ${stammFilter.bereich === c.id ? 'is-active' : ''}" data-bereich="${esc(c.id)}">${esc(c.label)}</button>`
         )
         .join('')}
     </div>
@@ -1751,11 +1765,12 @@ function openTabelleSheet() {
         <h4 class="section" style="margin-top:18px">Zurück</h4>
         <p class="hint">In Excel alles markieren (auch die Kopfzeile), kopieren, hier einfügen.
           Oder eine gespeicherte Datei wählen.</p>
-        <textarea id="tbEingabe" rows="5" placeholder="Tabelle hier einfügen"></textarea>
+        <textarea id="tbEingabe" rows="5" placeholder="Tabelle hier einfügen"
+          aria-describedby="tbBefund" aria-invalid="false"></textarea>
         <div style="height:10px"></div>
         <button class="btn" id="tbWaehlen">${icon('plus', 20)} Datei wählen</button>
         <input type="file" id="tbFile" accept=".csv,.tsv,.txt,text/csv,text/plain" hidden />
-        <div id="tbBefund"></div>`,
+        <div id="tbBefund" role="status" aria-live="polite"></div>`,
       foot: `<button class="btn primary" id="tbPruefen">Prüfen</button>
         <button class="btn" id="tbFertig">Schliessen</button>`,
     },
@@ -1822,6 +1837,9 @@ function zeigeBefund(ziel, ergebnis) {
   // Der Befund steht unterhalb des Eingabefeldes – ohne Nachfassen sieht man ihn nicht.
   const hinschauen = () => ziel.scrollIntoView({ behavior: 'smooth', block: 'end' });
 
+  const feld = document.querySelector('#tbEingabe');
+  if (feld) feld.setAttribute('aria-invalid', fehler.length ? 'true' : 'false');
+
   if (fehler.length) {
     ziel.innerHTML = `<div style="height:14px"></div>
       <section class="card befund is-fehler">
@@ -1835,6 +1853,21 @@ function zeigeBefund(ziel, ergebnis) {
     return;
   }
 
+  /*
+   * Nicht nur sagen, was kommt – auch, was geht.
+   *
+   * Die Bilanz nannte vorher nur die neue Anzahl. Wer 40 Einträge aus dem Blatt
+   * löschte, sah „174 Einträge (bisher 214)" und musste selbst rechnen; welche
+   * Bereiche verschwinden, stand gar nicht da.
+   */
+  const jetztIds = new Set(Object.keys(ergebnis.master));
+  const verlierenEintraege = Object.values(store.state.data.master)
+    .filter((m) => !m.deleted && !jetztIds.has(m.id));
+  const neueBereiche = new Set(ergebnis.bereiche.map((b) => b.id));
+  const verlierenBereiche = BEREICHE().filter((b) => !neueBereiche.has(b.id));
+  const beispiele = (liste, wie) =>
+    liste.slice(0, 5).map(wie).join(', ') + (liste.length > 5 ? ` … (+${liste.length - 5})` : '');
+
   ziel.innerHTML = `<div style="height:14px"></div>
     <section class="card befund">
       <div class="card-head">Bereit</div>
@@ -1843,6 +1876,14 @@ function zeigeBefund(ziel, ergebnis) {
         <li><b>${anzahl.teile}</b> Teile in Behältern</li>
         <li><b>${anzahl.bereiche}</b> Bereiche · <b>${anzahl.aktivitaeten}</b> Aktivitäten</li>
       </ul>
+      ${
+        verlierenEintraege.length || verlierenBereiche.length
+          ? `<ul class="verlust">
+              ${verlierenEintraege.length ? `<li><b>${verlierenEintraege.length}</b> Einträge fallen weg: ${esc(beispiele(verlierenEintraege, (m) => m.label))}</li>` : ''}
+              ${verlierenBereiche.length ? `<li><b>${verlierenBereiche.length}</b> Bereiche fallen weg: ${esc(beispiele(verlierenBereiche, (b) => b.label))}</li>` : ''}
+            </ul>`
+          : '<ul class="sub"><li>Es fällt nichts weg.</li></ul>'
+      }
       ${hinweise.length ? `<ul class="sub">${hinweise.slice(0, 12).map((h) => `<li>${esc(h)}</li>`).join('')}</ul>` : ''}
     </section>
     <p class="hint">Die alte Stammliste wird ersetzt. Laufende Reisen bleiben, wie sie sind.</p>
@@ -2047,7 +2088,7 @@ function openStammSheet(id, vorgabe = null) {
 
       <label class="field"><span>Bereich</span>
         <select id="sCat">${BEREICHE()
-          .map((c) => `<option value="${c.id}" ${c.id === e.category ? 'selected' : ''}>${esc(c.label)}</option>`)
+          .map((c) => `<option value="${esc(c.id)}" ${c.id === e.category ? 'selected' : ''}>${esc(c.label)}</option>`)
           .join('')}</select></label>
 
       <div class="field"><span>Für wen?</span>

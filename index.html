@@ -10,6 +10,37 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Packliste" />
+    <!--
+      Content-Security-Policy.
+
+      Die App baut ihre Oberfläche durchgehend mit innerHTML und lädt Daten von
+      einem Server, dessen Adresse der Nutzer selbst einträgt. Ohne diese Zeile
+      wäre eingeschleuster Code durch nichts begrenzt und könnte Daten an eine
+      beliebige Adresse schicken. `connect-src` bleibt darum weit genug für
+      Supabase (https und wss), alles Ausführbare kommt aber nur von hier.
+
+      `style-src` erlaubt bewusst `unsafe-inline`: Fortschrittsbalken, Sheet-
+      Position und Spaltenbreiten werden im Markup gesetzt. Das ist die
+      schwächste der Regeln, aber die wertvollen bleiben streng - eingeschleustes
+      Skript läuft nicht, und ein Formular oder eine geänderte Basis-Adresse
+      kann nichts abfliessen lassen.
+
+      Als Meta-Element gesetzt, weil GitHub Pages keine eigenen Kopfzeilen
+      erlaubt. `frame-ancestors` und `report-uri` wirken so nicht - dafür
+      bräuchte es einen echten HTTP-Header.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self';
+               script-src 'self';
+               style-src 'self' 'unsafe-inline';
+               img-src 'self' data:;
+               connect-src 'self' https: wss:;
+               font-src 'self';
+               object-src 'none';
+               base-uri 'none';
+               form-action 'none'"
+    />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="assets/icon-180.png" />
@@ -20,10 +51,12 @@
       <header class="topbar">
         <div class="topbar-row">
           <button class="trip-switch" id="tripSwitch" type="button">
-            <span class="trip-name" id="topTripName">Reisen</span>
+            <h1 class="trip-name" id="topTripName">Reisen</h1>
             <span class="trip-sub" id="topTripSub">Familie Hofmann</span>
           </button>
-          <button class="icon-btn" id="btnSync" type="button" title="Sync"></button>
+          <button class="icon-btn" id="btnSync" type="button" title="Sync">
+            <span class="visually-hidden" id="syncText">Sync</span>
+          </button>
         </div>
         <div class="progress" id="progressWrap">
           <span class="progress-bar"><span class="progress-fill" id="progressFill"></span></span>
@@ -33,8 +66,8 @@
 
       <main id="view" class="view"></main>
 
-      <nav class="tabbar">
-        <button class="tab is-active" data-tab="reisen" type="button"><span class="tab-ico"></span>Reisen</button>
+      <nav class="tabbar" aria-label="Bereiche">
+        <button class="tab is-active" data-tab="reisen" type="button" aria-current="page"><span class="tab-ico"></span>Reisen</button>
         <button class="tab" data-tab="liste" type="button"><span class="tab-ico"></span>Liste</button>
         <button class="tab" data-tab="reise" type="button"><span class="tab-ico"></span>Angaben</button>
         <button class="tab" data-tab="stamm" type="button"><span class="tab-ico"></span>Stammliste</button>
