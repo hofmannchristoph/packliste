@@ -77,3 +77,49 @@ test('offensichtlicher Unsinn aus der Ferne wird gar nicht erst übernommen', as
 
   assert.equal(Object.keys(store.state.data.bereiche).length, vorher, 'nichts davon darf hängenbleiben');
 });
+
+test('Verweise auf gelöschte Aktivitäten werden abgestreift', async () => {
+  stelleUmgebung();
+  const store = await frisch('../src/store.js');
+  store.load();
+
+  const badehose = store.state.data.master['m:kl.badehose'];
+  assert.ok(badehose.aktivitaeten.includes('wellness'), 'Ausgangslage: der Verweis ist da');
+
+  // Aktivität von aussen entfernen, ohne removeAktivitaet – wie es der Abgleich täte.
+  store.state.data.aktivitaeten['wellness'] = {
+    ...store.state.data.aktivitaeten['wellness'],
+    deleted: true,
+  };
+  const geaendert = store.raeumeVerweise();
+
+  assert.ok(geaendert > 0, 'es muss etwas aufgeräumt worden sein');
+  assert.deepEqual(store.state.data.master['m:kl.badehose'].aktivitaeten, ['badi']);
+});
+
+test('auch die Bedingungen eines Behälterteils werden mitgeräumt', async () => {
+  stelleUmgebung();
+  const store = await frisch('../src/store.js');
+  store.load();
+
+  const id = store.addMasterItem({
+    label: 'Wellnesstasche',
+    category: 'bad',
+    teile: [{ label: 'Bademantel', qty: 1, aktivitaeten: ['wellness'] }],
+  });
+  store.removeAktivitaet('wellness');
+
+  assert.deepEqual(store.state.data.master[id].teile[0].aktivitaeten, [],
+    'ein Teil darf nicht an eine Aktivität gebunden bleiben, die es nicht gibt');
+});
+
+test('ein Eintrag ohne gültigen Bereich verschwindet nicht', async () => {
+  stelleUmgebung();
+  const store = await frisch('../src/store.js');
+  store.load();
+  const id = store.addMasterItem({ label: 'Waise', category: 'gibtesnicht' });
+  store.raeumeVerweise();
+  const bereiche = store.bereiche().map((b) => b.id);
+  assert.ok(bereiche.includes(store.state.data.master[id].category),
+    'der Eintrag muss in einem vorhandenen Bereich landen');
+});

@@ -5,7 +5,11 @@
  * den Namen dieses Caches aus. Bei jeder Veröffentlichung hochzählen.
  */
 
-const VERSION = 'packliste-v27';
+/*
+ * Fassung als 1.xx. Der Teil vor dem Bindestrich benennt den Cache, der Teil
+ * danach ist das, was die App unter Sync anzeigt.
+ */
+const VERSION = 'packliste-1.28';
 /** So lange darf das Netz brauchen, bevor der Cache einspringt. */
 const NETZ_FRIST_MS = 2000;
 const SHELL = [

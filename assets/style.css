@@ -549,7 +549,12 @@ h2.section {
  */
 .wisch-huelle {
   display: flex;
-  overflow: hidden;
+  gap: 8px;
+  /*
+   * Kein `overflow: hidden` mehr: Es hätte die linke Rundung des Löschen-Knopfs
+   * wieder abgeschnitten. Der Knopf wächst ohnehin nur bis zu seiner Breite,
+   * es gibt also nichts zu beschneiden.
+   */
   border-radius: var(--r-m);
 }
 .wisch-huelle > .reise-karte {
@@ -568,7 +573,11 @@ h2.section {
   color: var(--on-danger);
   background: var(--danger);
   border: 0;
-  border-radius: 0 var(--r-m) var(--r-m) 0;
+  /*
+   * Rundum abgerundet, nicht nur rechts. Der Knopf steht frei neben der Karte –
+   * eine kantige linke Seite sah aus, als wäre er abgeschnitten.
+   */
+  border-radius: var(--r-m);
 }
 .wisch-loeschen > span {
   display: flex;
@@ -1040,3 +1049,49 @@ h1.trip-name { margin: 0; }
   color: var(--ink-3);
   border-radius: 50%;
 }
+
+/* ---------- Kopf der Stammliste ---------- */
+
+/*
+ * Suche und zwei Knöpfe in einer Zeile.
+ *
+ * Vorher standen drei Verwaltungszeilen und eine lange Bereichsleiste über der
+ * Liste; die eigentliche Stammliste begann erst weit unten. Beides liegt jetzt
+ * hinter je einem Knopf.
+ */
+.stamm-kopf {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.stamm-kopf .search-wrap { flex: 1; min-width: 0; margin: 0; }
+
+.kopf-knopf {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  border-radius: var(--r-s);
+  background: var(--fill);
+  color: var(--ink);
+}
+.kopf-knopf.is-active { background: var(--ink); color: var(--on-ink); }
+.kopf-zahl {
+  position: absolute;
+  top: 4px;
+  right: 5px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  color: var(--ink);
+  background: var(--bg);
+  border-radius: 99px;
+}
+
+/* Ein aktiver Filter als abwählbarer Chip. */
+.filters .chip .ico { display: inline-block; vertical-align: -2px; margin-left: 2px; }

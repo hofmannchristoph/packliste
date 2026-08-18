@@ -40,7 +40,7 @@ const sheet = $('#sheet');
 
 let tab = 'reisen';
 let filter = { mode: 'offen', who: 'alle', group: 'person' };
-let stammFilter = { bereich: 'alle', suche: '' };
+let stammFilter = { bereich: 'alle', person: 'alle', aktivitaet: 'alle', suche: '' };
 /**
  * Zugeklappte Behälter. Standardmässig ist alles offen – beim Packen will man
  * sehen, was drin ist. Nur für die Ansicht, wird nicht gespeichert.
@@ -74,6 +74,8 @@ store.load();
 if (store.state.data.activeTripId && !store.activeTrip()) store.state.data.activeTripId = null;
 // Beim Start einmal aufräumen, damit der Datenbestand nicht monoton wächst.
 store.verdichteGrabsteine();
+// Verweise auf gelöschte Bereiche und Aktivitäten abstreifen.
+store.raeumeVerweise();
 
 store.subscribe(() => {
   render();
@@ -1629,8 +1631,44 @@ function renderStammliste() {
   const suche = stammFilter.suche.trim().toLowerCase();
   const gefiltert = alle
     .filter((m) => stammFilter.bereich === 'alle' || m.category === stammFilter.bereich)
+    .filter((m) => {
+      if (stammFilter.person === 'alle') return true;
+      const wer = werVon(m);
+      // Ein Eintrag ohne Personen ist ein gemeinsamer.
+      return stammFilter.person === SHARED ? !wer.length : wer.includes(stammFilter.person);
+    })
+    .filter((m) => {
+      if (stammFilter.aktivitaet === 'alle') return true;
+      if (stammFilter.aktivitaet === 'ohne') return !(m.aktivitaeten ?? []).length;
+      return (m.aktivitaeten ?? []).includes(stammFilter.aktivitaet);
+    })
     .filter((m) => !suche || m.label.toLowerCase().includes(suche));
-  const belegteBereiche = BEREICHE().filter((c) => alle.some((m) => m.category === c.id));
+  /*
+   * Was gerade gefiltert wird, steht als abwählbarer Chip unter der Suche.
+   *
+   * Vorher lagen drei Verwaltungszeilen und eine lange Bereichsleiste über der
+   * Liste – die eigentliche Stammliste begann erst weit unten. Jetzt liegt die
+   * Auswahl in einem Sheet, und oben steht nur, was tatsächlich aktiv ist.
+   */
+  const aktiveFilter = [];
+  if (stammFilter.bereich !== 'alle') {
+    aktiveFilter.push({
+      feld: 'bereich',
+      text: BEREICHE().find((b) => b.id === stammFilter.bereich)?.label ?? stammFilter.bereich,
+    });
+  }
+  if (stammFilter.person !== 'alle') {
+    aktiveFilter.push({ feld: 'person', text: personName(stammFilter.person) });
+  }
+  if (stammFilter.aktivitaet !== 'alle') {
+    aktiveFilter.push({
+      feld: 'aktivitaet',
+      text:
+        stammFilter.aktivitaet === 'ohne'
+          ? 'Ohne Aktivität'
+          : AKTIVITAETEN().find((a) => a.id === stammFilter.aktivitaet)?.label ?? stammFilter.aktivitaet,
+    });
+  }
 
   const karten = BEREICHE().map((cat) => {
     const list = gefiltert
@@ -1657,47 +1695,39 @@ function renderStammliste() {
   view.innerHTML = `
     <p class="hint">Änderungen hier wirken auf neue Reisen. Laufende bleiben unberührt,
       bis du sie in der Reise übernimmst.</p>
-    <section class="card">
-      <button class="list-row" id="stBereiche" style="padding:15px 16px">
-        ${iconTile('basket')}
-        <span class="grow"><span>Bereiche verwalten</span><br />
-          <span class="sub">${BEREICHE().length} Bereiche</span></span>
-        ${icon('chevron', 18)}
-      </button>
-      <button class="list-row" id="stAktivitaeten" style="padding:15px 16px">
-        ${iconTile('bike')}
-        <span class="grow"><span>Aktivitäten verwalten</span><br />
-          <span class="sub">${AKTIVITAETEN().length} Aktivitäten</span></span>
-        ${icon('chevron', 18)}
-      </button>
-      <button class="list-row" id="stTabelle" style="padding:15px 16px">
-        ${iconTile('doc')}
-        <span class="grow"><span>Als Tabelle bearbeiten</span><br />
-          <span class="sub">In Excel umbauen und zurückspielen</span></span>
-        ${icon('chevron', 18)}
-      </button>
-    </section>
-    <div class="search-wrap">${icon('search', 20)}
-      <input type="text" id="stSuche" value="${esc(stammFilter.suche)}" placeholder="Eintrag suchen" />
+    <div class="stamm-kopf">
+      <div class="search-wrap">${icon('search', 20)}
+        <input type="text" id="stSuche" value="${esc(stammFilter.suche)}" placeholder="Eintrag suchen" />
+      </div>
+      <button class="kopf-knopf ${aktiveFilter.length ? 'is-active' : ''}" id="stFilter" type="button"
+        aria-label="Filtern">${icon('tune', 20)}${
+          aktiveFilter.length ? `<span class="kopf-zahl">${aktiveFilter.length}</span>` : ''
+        }</button>
+      <button class="kopf-knopf" id="stVerwalten" type="button" aria-label="Verwalten">${icon('dots', 20)}</button>
     </div>
-    <div class="filters">
-      <button class="chip ${stammFilter.bereich === 'alle' ? 'is-active' : ''}" data-bereich="alle">Alle</button>
-      ${belegteBereiche
-        .map(
-          (c) =>
-            `<button class="chip ${stammFilter.bereich === c.id ? 'is-active' : ''}" data-bereich="${esc(c.id)}">${esc(c.label)}</button>`
-        )
-        .join('')}
-    </div>
+    ${
+      aktiveFilter.length
+        ? `<div class="filters">${aktiveFilter
+            .map(
+              (f) =>
+                `<button class="chip is-active" data-filterweg="${esc(f.feld)}">${esc(f.text)} ${icon('close', 14)}</button>`
+            )
+            .join('')}</div>`
+        : ''
+    }
     <p class="hint">${gefiltert.length} von ${alle.length} Einträgen</p>
     ${karten || `<div class="empty"><span class="big">${icon('search', 26)}</span>Keine Einträge gefunden.</div>`}
     <button class="btn primary" id="stNeu">${icon('plus', 20)} Eintrag hinzufügen</button>
-    <button class="btn danger" id="stReset">Stammliste zurücksetzen</button>
   `;
 
-  view.querySelector('#stBereiche').addEventListener('click', openBereicheSheet);
-  view.querySelector('#stAktivitaeten').addEventListener('click', openAktivitaetenSheet);
-  view.querySelector('#stTabelle').addEventListener('click', openTabelleSheet);
+  view.querySelector('#stFilter').addEventListener('click', openStammFilterSheet);
+  view.querySelector('#stVerwalten').addEventListener('click', openStammVerwaltenSheet);
+  view.querySelectorAll('[data-filterweg]').forEach((b) =>
+    b.addEventListener('click', () => {
+      stammFilter[b.dataset.filterweg] = 'alle';
+      render();
+    })
+  );
 
   const suchfeld = view.querySelector('#stSuche');
   suchfeld.addEventListener('input', () => {
@@ -1707,12 +1737,6 @@ function renderStammliste() {
     neu.focus();
     neu.setSelectionRange(neu.value.length, neu.value.length);
   });
-  view.querySelectorAll('[data-bereich]').forEach((b) =>
-    b.addEventListener('click', () => {
-      stammFilter.bereich = b.dataset.bereich;
-      render();
-    })
-  );
   view.querySelectorAll('[data-stamm]').forEach((b) => {
     b.addEventListener('click', () => openStammSheet(b.dataset.stamm));
     // Wischen löscht aus der Stammliste – ebenfalls widerrufbar.
@@ -1728,25 +1752,122 @@ function renderStammliste() {
     });
   });
   view.querySelector('#stNeu').addEventListener('click', () => openStammSheet(null));
-  view.querySelector('#stReset').addEventListener('click', () =>
-    confirmSheet(
-      {
-        titel: 'Stammliste zurücksetzen?',
-        text: 'Alle eigenen Änderungen an der Vorlage gehen verloren. Bestehende Reisen bleiben, wie sie sind.',
-        knopf: 'Ja, zurücksetzen',
-      },
-      () => {
-        // Widerrufen wie beim Tabellen-Import – der Nachbarweg konnte es längst.
-        const vorher = store.stammlisteSichern();
-        store.resetMaster();
+}
+
+/**
+ * Filtern nach Bereich, Person und Aktivität.
+ *
+ * Alle drei in einem Sheet statt als Chip-Leisten über der Liste: drei
+ * Leisten hätten den halben Bildschirm gekostet, bevor der erste Eintrag
+ * überhaupt zu sehen ist.
+ */
+function openStammFilterSheet() {
+  const alle = Object.values(store.state.data.master).filter((m) => !m.deleted);
+  const belegte = BEREICHE().filter((c) => alle.some((m) => m.category === c.id));
+  const gruppe = (titel, feld, werte) => `
+    <h4 class="section" style="margin-top:16px">${esc(titel)}</h4>
+    <div class="options">
+      ${werte
+        .map(
+          (w) =>
+            `<button class="chip ${stammFilter[feld] === w.id ? 'is-active' : ''}" type="button"
+               data-feld="${feld}" data-wert="${esc(w.id)}">${esc(w.label)}</button>`
+        )
+        .join('')}
+    </div>`;
+
+  openSheet(
+    {
+      body: `<h3>Filtern</h3>
+        ${gruppe('Bereich', 'bereich', [{ id: 'alle', label: 'Alle' }, ...belegte])}
+        ${gruppe('Für wen', 'person', [
+          { id: 'alle', label: 'Alle' },
+          ...PERSONEN.map((x) => ({ id: x.id, label: x.name })),
+          { id: SHARED, label: 'Gemeinsam' },
+        ])}
+        ${gruppe('Aktivität', 'aktivitaet', [
+          { id: 'alle', label: 'Alle' },
+          { id: 'ohne', label: 'Ohne Aktivität' },
+          ...AKTIVITAETEN(),
+        ])}`,
+      foot: `<button class="btn primary" id="fFertig">Fertig</button>
+        <button class="btn" id="fZuruecksetzen">Filter zurücksetzen</button>`,
+    },
+    (root) => {
+      root.querySelectorAll('[data-feld]').forEach((b) =>
+        b.addEventListener('click', () => {
+          stammFilter[b.dataset.feld] = b.dataset.wert;
+          render();
+          openStammFilterSheet();
+        })
+      );
+      root.querySelector('#fFertig').addEventListener('click', closeSheet);
+      root.querySelector('#fZuruecksetzen').addEventListener('click', () => {
+        stammFilter = { ...stammFilter, bereich: 'alle', person: 'alle', aktivitaet: 'alle' };
+        render();
         closeSheet();
-        toast(
-          'Stammliste zurückgesetzt',
-          { text: 'Widerrufen', fn: () => store.stelleStammlisteWiederHer(vorher) },
-          12000
-        );
-      }
-    )
+      });
+    }
+  );
+}
+
+/** Alles, was die Stammliste als Ganzes betrifft – gebündelt statt über der Liste. */
+function openStammVerwaltenSheet() {
+  openSheet(
+    {
+      body: `<h3>Stammliste verwalten</h3>
+        <section class="card">
+          <button class="list-row" id="vBereiche" style="padding:15px 16px">
+            ${iconTile('basket')}
+            <span class="grow"><span>Bereiche</span><br />
+              <span class="sub">${BEREICHE().length} Bereiche</span></span>
+            ${icon('chevron', 18)}
+          </button>
+          <button class="list-row" id="vAktivitaeten" style="padding:15px 16px">
+            ${iconTile('bike')}
+            <span class="grow"><span>Aktivitäten</span><br />
+              <span class="sub">${AKTIVITAETEN().length} Aktivitäten</span></span>
+            ${icon('chevron', 18)}
+          </button>
+          <button class="list-row" id="vTabelle" style="padding:15px 16px">
+            ${iconTile('doc')}
+            <span class="grow"><span>Als Tabelle bearbeiten</span><br />
+              <span class="sub">In Excel umbauen und zurückspielen</span></span>
+            ${icon('chevron', 18)}
+          </button>
+        </section>
+        <div style="height:18px"></div>
+        <button class="btn danger" id="vReset">Stammliste zurücksetzen</button>
+        <p class="hint" style="margin-top:8px">Setzt die Liste auf den Ausgangsstand zurück.
+          Zwölf Sekunden lang widerrufbar.</p>`,
+      foot: `<button class="btn primary" id="vFertig">Fertig</button>`,
+    },
+    (root) => {
+      root.querySelector('#vBereiche').addEventListener('click', openBereicheSheet);
+      root.querySelector('#vAktivitaeten').addEventListener('click', openAktivitaetenSheet);
+      root.querySelector('#vTabelle').addEventListener('click', openTabelleSheet);
+      root.querySelector('#vFertig').addEventListener('click', closeSheet);
+      root.querySelector('#vReset').addEventListener('click', () =>
+        confirmSheet(
+          {
+            titel: 'Stammliste zurücksetzen?',
+            text: 'Alle eigenen Änderungen an der Vorlage gehen verloren. Bestehende Reisen bleiben, wie sie sind.',
+            knopf: 'Ja, zurücksetzen',
+          },
+          () => {
+            // Widerrufen wie beim Tabellen-Import – der Nachbarweg konnte es längst.
+            const vorher = store.stammlisteSichern();
+            store.resetMaster();
+            closeSheet();
+            toast(
+              'Stammliste zurückgesetzt',
+              { text: 'Widerrufen', fn: () => store.stelleStammlisteWiederHer(vorher) },
+              12000
+            );
+          }
+        )
+      );
+    }
   );
 }
 

@@ -641,13 +641,20 @@ export function removeAktivitaet(id) {
   if (!cur) return;
   const now = jetzt();
   for (const m of Object.values(state.data.master)) {
-    if ((m.aktivitaeten ?? []).includes(id)) {
-      state.data.master[m.id] = {
-        ...m,
-        aktivitaeten: m.aktivitaeten.filter((a) => a !== id),
-        updatedAt: now,
-      };
-    }
+    const obenDrin = (m.aktivitaeten ?? []).includes(id);
+    // Auch die Bedingungen der Behälterteile – die wurden vorher übersehen,
+    // und ein Teil blieb dann an eine Aktivität gebunden, die es nicht gibt.
+    const inTeilen = (m.teile ?? []).some((t) => (t.aktivitaeten ?? []).includes(id));
+    if (!obenDrin && !inTeilen) continue;
+    state.data.master[m.id] = {
+      ...m,
+      aktivitaeten: (m.aktivitaeten ?? []).filter((a) => a !== id),
+      teile: (m.teile ?? []).map((t) => ({
+        ...t,
+        aktivitaeten: (t.aktivitaeten ?? []).filter((a) => a !== id),
+      })),
+      updatedAt: now,
+    };
   }
   state.data.masterUpdatedAt = now;
   for (const t of Object.values(state.data.trips)) {
@@ -1035,6 +1042,52 @@ export function verdichteGrabsteine(frist = GRABSTEIN_FRIST_MS) {
     persist();
   }
   return weg;
+}
+
+/**
+ * Verweise auf Bereiche und Aktivitäten abstreifen, die es nicht mehr gibt.
+ *
+ * `removeAktivitaet` räumt auf, aber nicht jeder Weg führt dort vorbei: ein
+ * Eintrag kann über den Abgleich vom anderen Gerät zurückkommen und einen
+ * Verweis mitbringen, den dieses Gerät längst gelöscht hat. Bisher blieb der
+ * stehen – in der Liste erschien dann statt einer Bezeichnung die nackte ID,
+ * und die Regel band den Eintrag an etwas, das niemand mehr auswählen kann.
+ */
+export function raeumeVerweise() {
+  const akt = new Set(aktivitaeten().map((a) => a.id));
+  const ber = new Set(bereiche().map((b) => b.id));
+  const ersatz = bereiche()[0]?.id ?? null;
+  const now = jetzt();
+  let geaendert = 0;
+
+  for (const m of Object.values(state.data.master)) {
+    if (m.deleted) continue;
+    const neueAkt = (m.aktivitaeten ?? []).filter((a) => akt.has(a));
+    const teileNeu = (m.teile ?? []).map((t) => ({
+      ...t,
+      aktivitaeten: (t.aktivitaeten ?? []).filter((a) => akt.has(a)),
+    }));
+    const bereichWeg = m.category && !ber.has(m.category);
+    const teileGeaendert = teileNeu.some(
+      (t, i) => t.aktivitaeten.length !== (m.teile[i].aktivitaeten ?? []).length
+    );
+    if (neueAkt.length === (m.aktivitaeten ?? []).length && !bereichWeg && !teileGeaendert) continue;
+    state.data.master[m.id] = {
+      ...m,
+      aktivitaeten: neueAkt,
+      teile: teileNeu,
+      // Ein heimatloser Eintrag wandert in den ersten Bereich, statt unsichtbar
+      // zu werden – sichtbar und falsch einsortiert ist besser als verschwunden.
+      category: bereichWeg && ersatz ? ersatz : m.category,
+      updatedAt: now,
+    };
+    geaendert++;
+  }
+  if (geaendert) {
+    state.data.masterUpdatedAt = now;
+    persist();
+  }
+  return geaendert;
 }
 
 export function haushaltRevision() {

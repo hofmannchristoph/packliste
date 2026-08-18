@@ -24,6 +24,7 @@ import {
   schreibe,
   emit,
   emitStatus,
+  raeumeVerweise,
 } from './store.js';
 
 const TABLE = 'packlists';
@@ -228,6 +229,9 @@ function applyRemote(row, id = null) {
   if (!gehoertUns(row, id)) return;
   if (row.kind === 'household') {
     mergeHaushalt(row);
+    // Ein Eintrag vom anderen Gerät kann Verweise mitbringen, die es hier
+    // nicht mehr gibt – die dürfen nicht liegenbleiben.
+    raeumeVerweise();
     for (const t of row.tripIds ?? []) erwarteteTrips.add(t);
     // Reisen, die das andere Gerät kennt, nachladen.
     const fehlend = (row.tripIds ?? []).filter((id) => !state.data.trips[id] && !istGeloescht(id));
