@@ -193,6 +193,52 @@ Zwei Wege, es strenger zu machen:
 
 Am strengsten geht es mit Supabase **Authentication**: die Policies von `anon` auf `authenticated` mit `user_id`-Prüfung umstellen.
 
+## Wenn etwas schiefgeht
+
+Drei Störungen sind absehbar. Was dann zu tun ist:
+
+**Der Sync-Punkt bleibt rot.** Antippe ihn – darunter steht der Grund im
+Klartext. „Der Zugang wurde abgelehnt" heisst Schlüssel prüfen, „Zu gross für
+den Server" heisst archivierte Reisen löschen, alles andere ist meist das Netz
+und holt sich von selbst wieder.
+
+**Ein Gerät zeigt plötzlich die Ausgangsstammliste und keine Reisen.** Dann
+konnte der gespeicherte Stand nicht gelesen werden; die App sagt das als roter
+Balken. Die Daten liegen weiterhin in Supabase. Unter *Sync* den Familien-Code
+des anderen Geräts eintragen – die Anbindung ist damit wieder da. Der unlesbare
+Datensatz liegt unter dem Schlüssel `packliste.state.v3.defekt` und wird nicht
+überschrieben.
+
+**Eine Änderung soll zurück.** Innerhalb der Frist zeigt der schwarze Balken
+unten *Widerrufen* – bei Reisen zehn Sekunden, beim Ersetzen der Stammliste
+zwölf. Danach hilft nur der zuletzt abgelegte Tabellenexport. Deshalb: vor
+jedem grösseren Umbau *Stammliste → Als Tabelle bearbeiten → Als Datei sichern*.
+Das ist die einzige Sicherung, die es gibt.
+
+**Auf eine frühere Fassung zurück.** `git revert <commit> && git push`. GitHub
+Pages veröffentlicht den Stand von `main`; einen Knopf dafür gibt es nicht. Die
+Einstellung, welcher Zweig veröffentlicht wird, liegt in den GitHub-Einstellungen
+und nicht im Repository – wer sie ändert, ändert etwas, das hier niemand sieht.
+
+**Den Schlüssel wechseln.** Im Supabase-Dashboard unter *API Keys* den anon-Key
+rotieren. Danach greift kein Gerät mehr, bis der neue Schlüssel unter *Sync*
+eingetragen ist – auf beiden. Das ist zugleich der einzige Weg, einen einmal
+geteilten Familien-Code wirkungslos zu machen.
+
+## Wo die Daten liegen
+
+Auf beiden Geräten im `localStorage` des Browsers, und in einem Supabase-Projekt,
+dessen Region beim Anlegen gewählt wurde. Beim Verbindungsaufbau geht die
+Projekt-Adresse an Supabase; sonst verlässt nichts das Gerät. Die Bibliothek
+liegt seit v26 im Repository (`vendor/`) statt bei einem fremden CDN, es wird
+also beim Start keine dritte Stelle mehr angefragt.
+
+Gelöschtes bleibt als Grabstein bestehen, damit es nicht vom anderen Gerät
+zurückkommt; Grabsteine älter als ein halbes Jahr räumt die App beim Start weg.
+Ein echtes Löschen in der Datenbank gibt es nicht – die Policies erlauben kein
+`delete`. Wer wirklich alles entfernen will, löscht die Zeilen im
+Supabase-Dashboard und danach die App-Daten auf beiden Geräten.
+
 ## Tests
 
 Kein Paketmanagement nötig – Node bringt alles mit:

@@ -5,7 +5,7 @@
  * den Namen dieses Caches aus. Bei jeder Veröffentlichung hochzählen.
  */
 
-const VERSION = 'packliste-v26';
+const VERSION = 'packliste-v27';
 /** So lange darf das Netz brauchen, bevor der Cache einspringt. */
 const NETZ_FRIST_MS = 2000;
 const SHELL = [

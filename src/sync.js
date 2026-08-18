@@ -27,6 +27,16 @@ import {
 } from './store.js';
 
 const TABLE = 'packlists';
+/**
+ * Obergrenze der Nutzlast, wie sie die RLS-Policy setzt.
+ *
+ * Der Client kannte sie nicht: eine zu grosse Zeile wurde vom Server
+ * abgelehnt, und der Abgleich fiel von da an dauerhaft aus – mit derselben
+ * allgemeinen Meldung wie ein Netzausfall. Bei 90 Prozent wird gewarnt,
+ * darüber gar nicht erst gesendet.
+ */
+const MAX_NUTZLAST = 400000;
+const WARNSCHWELLE = 0.9;
 let client = null;
 let channel = null;
 const pushTimers = new Map();
@@ -154,6 +164,7 @@ export function disconnect() {
   client = null;
   pushedRev.clear();
   letzteTripSignatur = null;
+  letzterAbruf = null;
   clearTimeout(kanalTimer);
   neuversuche = 0;
   setStatus('local', 'Nur auf diesem Gerät');
@@ -254,10 +265,29 @@ async function pullTrips(ids) {
   for (const r of data ?? []) applyRemote(r.data, r.id);
 }
 
-/** Haushalt-Zeile und alle bekannten Reisen holen. */
-export async function pullAll() {
+/** Zeitpunkt des letzten vollständigen Abrufs – für den knappen Abruf danach. */
+let letzterAbruf = null;
+
+/**
+ * Haushalt-Zeile und alle bekannten Reisen holen.
+ *
+ * Beim ersten Mal vollständig. Danach reicht, was sich seither geändert hat:
+ * jeder Wechsel in den Vordergrund lud vorher alles neu – bei drei Reisen rund
+ * 700 KB, obwohl `updated_at` in der Tabelle steht und genau dafür da ist.
+ */
+export async function pullAll({ knapp = false } = {}) {
   if (!client) return;
   const hid = state.data.householdId;
+  if (knapp && letzterAbruf) {
+    const { data, error } = await client
+      .from(TABLE)
+      .select('id,data')
+      .gt('updated_at', letzterAbruf);
+    if (error) throw error;
+    for (const r of data ?? []) applyRemote(r.data, r.id);
+    letzterAbruf = new Date().toISOString();
+    return;
+  }
   const { data: hh, error: hhErr } = await client.from(TABLE).select('id,data').eq('id', hid).maybeSingle();
   if (hhErr) throw hhErr;
   if (hh?.data) applyRemote(hh.data, hh.id);
@@ -276,6 +306,7 @@ export async function pullAll() {
      */
     for (const id of ids) if (!bekannt.has(id)) push(id, 0);
   }
+  letzterAbruf = new Date().toISOString();
 }
 
 /** Einem Haushalt beitreten – Stammliste und alle Reisen übernehmen. */
@@ -322,7 +353,26 @@ async function upsert(id, payload) {
   }
 }
 
+function nutzlastPruefen(id, payload) {
+  const groesse = new TextEncoder().encode(JSON.stringify(payload)).length;
+  if (groesse > MAX_NUTZLAST) {
+    setStatus(
+      'error',
+      'Zu gross für den Server',
+      `Diese Liste ist ${Math.round(groesse / 1024)} KB gross, erlaubt sind ${Math.round(
+        MAX_NUTZLAST / 1024
+      )} KB. Archivierte Reisen löschen schafft Platz.`
+    );
+    return false;
+  }
+  if (groesse > MAX_NUTZLAST * WARNSCHWELLE) {
+    console.warn(`Nutzlast für ${id} bei ${Math.round((groesse / MAX_NUTZLAST) * 100)} % der Grenze`);
+  }
+  return true;
+}
+
 async function upsertJetzt(id, payload) {
+  if (!nutzlastPruefen(id, payload)) return;
   const { error } = await mitFrist(
     client.from(TABLE).upsert({ id, data: payload, updated_at: new Date().toISOString() }),
     MIT_FRIST,
@@ -428,7 +478,7 @@ export function initAutoSync() {
     if (document.visibilityState === 'visible' && isConfigured()) {
       if (client) {
         // Nach der Rückkehr kann der Kanal stillschweigend tot sein.
-        pullAll()
+        pullAll({ knapp: true })
           .then(() => {
             neuversuche = 0;
             subscribeRealtime();

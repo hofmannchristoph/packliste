@@ -1028,3 +1028,15 @@ h1.trip-name { margin: 0; }
   color: var(--danger);
   font-size: 13px;
 }
+
+/* Teil eines Behälters aus der Reise werfen – die antippbare Entsprechung zum Wischen. */
+.item-teil-weg {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: -10px -8px -10px 0;
+  color: var(--ink-3);
+  border-radius: 50%;
+}

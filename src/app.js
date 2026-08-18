@@ -72,6 +72,8 @@ const TAB_TITEL = {
 
 store.load();
 if (store.state.data.activeTripId && !store.activeTrip()) store.state.data.activeTripId = null;
+// Beim Start einmal aufräumen, damit der Datenbestand nicht monoton wächst.
+store.verdichteGrabsteine();
 
 store.subscribe(() => {
   render();
@@ -240,7 +242,7 @@ function wischbar(el, onDelete, { bestaetigen = false } = {}) {
   el.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     // Kästchen, Stift und Eingabefelder behalten ihre eigene Bedienung.
-    if (e.target.closest('.box-btn, .item-more, input, textarea, select')) return;
+    if (e.target.closest('.box-btn, .item-more, .item-teil-weg, input, textarea, select')) return;
     // Steht der Löschen-Knopf offen, schliesst die nächste Berührung ihn wieder.
     if (offen) {
       entschieden = true;
@@ -778,13 +780,28 @@ function openReiseSheet(id) {
         confirmSheet(
           {
             titel: 'Reise löschen?',
-            text: `„${trip.name}" wird entfernt. Das lässt sich nicht rückgängig machen.`,
+            /*
+             * Beide Wege müssen dasselbe tun und dasselbe sagen.
+             *
+             * Der Wischweg bot acht Sekunden Widerruf, dieser Knopf behauptete
+             * Unwiderruflichkeit – und war damit der gefährlichere, obwohl
+             * `undoDeleteTrip` längst existiert. Jetzt bekommt auch er den
+             * Widerruf, und der Text sagt die Wahrheit.
+             */
+            text: `„${trip.name}" wird entfernt. Danach bleiben acht Sekunden zum Widerrufen.`,
             knopf: 'Ja, löschen',
           },
           () => {
+            const kopie = JSON.parse(JSON.stringify(trip));
+            const pr = progress(trip);
             store.deleteTrip(trip.id);
             closeSheet();
             setTab('reisen');
+            toast(
+              `„${kopie.name}" gelöscht${pr.done ? ` · ${pr.done} Häkchen` : ''}`,
+              { text: 'Widerrufen', fn: () => store.undoDeleteTrip(kopie) },
+              10000
+            );
           }
         )
       );
@@ -1036,22 +1053,13 @@ function renderListe(trip) {
   view.querySelectorAll('.item .item-more').forEach((btn) =>
     btn.addEventListener('click', () => openItemSheet(trip, btn.closest('.item').dataset.id))
   );
+  // Derselbe Weg wie das Wischen, nur antippbar.
+  view.querySelectorAll('.item .item-teil-weg').forEach((btn) =>
+    btn.addEventListener('click', () => entferneAusReise(trip, btn.closest('.item').dataset.id))
+  );
 
   // Wischen löscht den Eintrag – nur für diese Reise, und widerrufbar.
-  view.querySelectorAll('.item').forEach((row) =>
-    wischbar(row, () => {
-      const id = row.dataset.id;
-      const it = trip.items[id];
-      if (!it) return;
-      // Bei einem Behälter gehen die Teile mit.
-      const ids = it.isContainer ? [id, ...kinderVon(trip, id).map((k) => k.id)] : [id];
-      for (const x of ids) store.removeItem(trip.id, x);
-      toast(`„${it.label}" entfernt`, {
-        text: 'Widerrufen',
-        fn: () => store.undoRemoveItem(trip.id, ids),
-      });
-    })
-  );
+  view.querySelectorAll('.item').forEach((row) => wischbar(row, () => entferneAusReise(trip, row.dataset.id)));
 
   // Schnell etwas ergänzen, direkt im richtigen Abschnitt.
   view.querySelectorAll('[data-add]').forEach((btn) =>
@@ -1087,6 +1095,24 @@ function renderListe(trip) {
 
   $('#addItem').addEventListener('click', () => openAddItemSheet(trip));
   $('#exportBtn').addEventListener('click', () => openExportSheet(trip));
+}
+
+/**
+ * Einen Eintrag aus dieser Reise werfen – über die Geste wie über den Knopf.
+ *
+ * Beide Wege gehören zusammen: Vorher war Wischen der einzige, und wer nicht
+ * wischen kann, hatte gar keinen.
+ */
+function entferneAusReise(trip, id) {
+  const it = trip.items[id];
+  if (!it) return;
+  // Bei einem Behälter gehen die Teile mit.
+  const ids = it.isContainer ? [id, ...kinderVon(trip, id).map((k) => k.id)] : [id];
+  for (const x of ids) store.removeItem(trip.id, x);
+  toast(`„${it.label}" entfernt`, {
+    text: 'Widerrufen',
+    fn: () => store.undoRemoveItem(trip.id, ids),
+  });
 }
 
 /** Ein Behälter samt seiner Teile, oder eine gewöhnliche Zeile. */
@@ -1138,7 +1164,12 @@ function itemRow(trip, it, withWho = true, istTeil = false) {
     </div>
     ${
       istTeil
-        ? ''
+        ? /*
+           * Auch ein Behälterteil braucht einen antippbaren Weg hinaus.
+           * Wischen war hier der einzige – ohne Zeigergerät gar keiner.
+           */
+          `<button class="item-teil-weg" type="button"
+             aria-label="${esc(it.label)} aus der Reise entfernen">${icon('close', 16)}</button>`
         : `<button class="item-more" type="button" aria-label="Bearbeiten">${icon('edit', 18)}</button>`
     }
   </div>`;

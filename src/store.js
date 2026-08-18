@@ -1000,6 +1000,43 @@ export function tripRevision(trip) {
 }
 
 /** Jüngster Zeitstempel des Haushalts: Stammliste, Bereiche, Aktivitäten. */
+/**
+ * Grabsteine ausdünnen.
+ *
+ * Sie wachsen monoton: jede gelöschte Reise und jeder aus einer Reise
+ * geworfene Eintrag hinterlässt einen, und entfernt wurde nie etwas. Nach
+ * einem halben Jahr trägt jeder Upload Einträge mit, an die sich niemand mehr
+ * erinnert. Ein Grabstein, der älter als die Frist ist, hat seinen Zweck
+ * erfüllt – beide Geräte haben ihn längst gesehen.
+ */
+const GRABSTEIN_FRIST_MS = 180 * 24 * 60 * 60 * 1000;
+
+export function verdichteGrabsteine(frist = GRABSTEIN_FRIST_MS) {
+  const grenze = jetzt() - frist;
+  let weg = 0;
+  for (const [id, e] of Object.entries(state.data.geloescht ?? {})) {
+    if ((e?.ts ?? 0) < grenze) {
+      delete state.data.geloescht[id];
+      weg++;
+    }
+  }
+  for (const trip of Object.values(state.data.trips)) {
+    for (const [id, e] of Object.entries(trip.dismissed ?? {})) {
+      // Nur zurückgenommene ausdünnen – ein aktives „weg" muss bleiben,
+      // sonst kommt der Eintrag bei der nächsten Berechnung zurück.
+      if (e?.weg === false && (e?.ts ?? 0) < grenze) {
+        delete trip.dismissed[id];
+        weg++;
+      }
+    }
+  }
+  if (weg) {
+    state.data.geloeschtUpdatedAt = jetzt();
+    persist();
+  }
+  return weg;
+}
+
 export function haushaltRevision() {
   let max = Math.max(
     state.data.masterUpdatedAt ?? 0,
