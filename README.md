@@ -193,6 +193,20 @@ Zwei Wege, es strenger zu machen:
 
 Am strengsten geht es mit Supabase **Authentication**: die Policies von `anon` auf `authenticated` mit `user_id`-Prüfung umstellen.
 
+## Tests
+
+Kein Paketmanagement nötig – Node bringt alles mit:
+
+```bash
+node --test test/*.test.js
+```
+
+Geprüft wird, was ohne Browser ehrlich prüfbar ist: die Regelauswertung, der
+Rundlauf durch die Tabelle, das Zusammenführen zweier Geräte, das Verhalten bei
+unlesbarem oder vollem Speicher – und die tragende Zusicherung der Packliste,
+dass **jede gezählte Zeile auch gezeigt wird**. Layout, Fokusverhalten und
+Zeichendauer stehen bewusst nicht darin; dafür braucht es einen echten Browser.
+
 ## Dateien
 
 | Datei | Zweck |

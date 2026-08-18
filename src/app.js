@@ -2405,7 +2405,21 @@ async function zeigeFassung() {
   try {
     const namen = await caches.keys();
     const treffer = namen.find((n) => n.startsWith('packliste-'));
-    feld.textContent = treffer ? treffer.replace('packliste-', '') : 'Entwicklung (kein Cache)';
+    const imCache = treffer ? treffer.replace('packliste-', '') : null;
+    if (!imCache) {
+      feld.textContent = 'Entwicklung (kein Cache)';
+      return;
+    }
+    /*
+     * Der Cache-Name ist die Fassung, die bereitliegt – nicht die, die gerade
+     * läuft. Nach einer Aktualisierung räumt `activate` den alten Cache weg,
+     * die offene Seite führt aber weiter den alten Code aus und läse hier eine
+     * Fassung, die sie gar nicht ist. Solange der Service Worker wartet, wird
+     * das gesagt.
+     */
+    const reg = await navigator.serviceWorker?.getRegistration?.();
+    const wartet = Boolean(reg?.waiting) || Boolean(reg?.installing);
+    feld.textContent = wartet ? `${imCache} liegt bereit – neu laden` : imCache;
   } catch {
     feld.textContent = 'unbekannt';
   }
