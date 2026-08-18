@@ -41,6 +41,21 @@
 * { box-sizing: border-box; }
 
 /*
+ * Kein Doppeltipp-Zoom.
+ *
+ * Beim schnellen Abhaken liegen zwei Tipps oft dicht beieinander, und iOS
+ * deutet das als Zoom. `manipulation` nimmt dem Browser genau diese Deutung
+ * und lässt Wischen und Kneifen unberührt.
+ *
+ * Die zweite, häufigere Ursache steckt in den Eingabefeldern: iOS zoomt beim
+ * Antippen automatisch hinein, sobald ein Feld kleiner als 16px schreibt.
+ * Darum haben alle Felder mindestens 16px – auch die schmalen Mengenfelder und
+ * das Textfeld für den Tabellen-Import, die vorher 14px und 12px hatten.
+ */
+html { touch-action: manipulation; }
+input, select, textarea { font-size: 16px; }
+
+/*
  * `hidden` muss immer gewinnen. Ohne diese Regel hebelt jeder Klassenselektor
  * mit eigenem `display` das eingebaute [hidden] aus – so blieb der Toast
  * stehen, nachdem er für den Widerrufen-Knopf auf Flex umgestellt wurde.
@@ -393,7 +408,7 @@ h2.section {
   color: var(--ink-2);
   margin-bottom: 4px;
 }
-.teil-fein-feld input { width: 100%; padding: 9px 10px; font-size: 14px; }
+.teil-fein-feld input { width: 100%; padding: 9px 10px; }
 
 /* Bedingungen eines Teils: eine ruhige Zeile, die den Block darunter aufklappt. */
 .teil-bed-knopf {
@@ -427,7 +442,7 @@ h2.section {
   margin-bottom: 6px;
 }
 .teil-bed-feld .chip { padding: 7px 12px; font-size: 13px; }
-.teil-bed-feld input { width: 100%; padding: 9px 10px; font-size: 14px; background: var(--surface); }
+.teil-bed-feld input { width: 100%; padding: 9px 10px; background: var(--surface); }
 .teil-zeile input { padding: 11px 10px; }
 /*
  * Breiten über flex-basis statt width: die Regel `input[type=number]`
@@ -919,8 +934,7 @@ code.code {
 textarea#exp,
 textarea#tbEingabe {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-  line-height: 1.55;
+  line-height: 1.5;
   letter-spacing: 0;
   resize: vertical;
 }

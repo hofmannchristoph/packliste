@@ -87,6 +87,23 @@ store.subscribe(() => {
  */
 store.subscribeStatus(() => render());
 
+/*
+ * Zoomen unterbinden.
+ *
+ * `user-scalable=no` im Viewport wirkt auf Android, aber **iOS Safari
+ * ignoriert es seit iOS 10** – dort hilft nur, die Kneif-Geste selbst
+ * abzulehnen. `gesturestart` ist Safari-eigen; andere Browser kennen es nicht
+ * und stören sich auch nicht daran.
+ *
+ * Das ist bewusst ein Eingriff mit Preis: Wer schlecht sieht, kann die Seite
+ * damit nicht mehr vergrössern. Die Schriftgrössen des Systems wirken
+ * weiterhin. Wenn es doch stört, reicht es, diesen Block und `maximum-scale`
+ * in index.html zu entfernen.
+ */
+for (const ereignis of ['gesturestart', 'gesturechange', 'gestureend']) {
+  document.addEventListener(ereignis, (e) => e.preventDefault(), { passive: false });
+}
+
 document.querySelectorAll('.tab').forEach((btn) => {
   const name = TAB_ICONS[btn.dataset.tab];
   btn.querySelector('.tab-ico').innerHTML = icon(name, 24);
@@ -561,9 +578,24 @@ function renderInner() {
   if (tab === 'stamm') return renderStammliste();
   if (tab === 'sync') return renderSync();
   if (!trip) {
-    view.innerHTML = `<div class="empty"><span class="big">${icon('bag', 26)}</span>Keine Reise geöffnet.</div>
-      <button class="btn primary" id="zuReisen">Zu den Reisen</button>`;
-    $('#zuReisen').addEventListener('click', () => setTab('reisen'));
+    /*
+     * Der Knopf steht oben, wie in der Reisenliste auch.
+     *
+     * Stand er unter dem Hinweis, sass er auf halber Höhe und die Ansicht
+     * wirkte, als fehle etwas darüber. Gibt es überhaupt keine Reise, führt der
+     * Knopf gleich zum Anlegen statt bloss in eine leere Liste.
+     */
+    const garkeine = !Object.keys(store.state.data.trips).length;
+    view.innerHTML = `
+      <button class="btn primary" id="zuReisen">
+        ${icon(garkeine ? 'plus' : 'bag', 20)} ${garkeine ? 'Neue Reise anlegen' : 'Zu den Reisen'}
+      </button>
+      <div class="empty"><span class="big">${icon('bag', 26)}</span>
+        ${garkeine
+          ? 'Noch keine Reise angelegt.<br />Leg eine an – die Liste entsteht aus der Stammliste.'
+          : 'Keine Reise geöffnet.'}
+      </div>`;
+    $('#zuReisen').addEventListener('click', () => (garkeine ? openNeueReise() : setTab('reisen')));
     return;
   }
   if (tab === 'liste') return renderListe(trip);
@@ -1719,8 +1751,7 @@ function openTabelleSheet() {
         <h4 class="section" style="margin-top:18px">Zurück</h4>
         <p class="hint">In Excel alles markieren (auch die Kopfzeile), kopieren, hier einfügen.
           Oder eine gespeicherte Datei wählen.</p>
-        <textarea id="tbEingabe" rows="5" placeholder="Tabelle hier einfügen"
-          style="width:100%;font-family:ui-monospace,Menlo,monospace;font-size:12px"></textarea>
+        <textarea id="tbEingabe" rows="5" placeholder="Tabelle hier einfügen"></textarea>
         <div style="height:10px"></div>
         <button class="btn" id="tbWaehlen">${icon('plus', 20)} Datei wählen</button>
         <input type="file" id="tbFile" accept=".csv,.tsv,.txt,text/csv,text/plain" hidden />
