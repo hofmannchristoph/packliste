@@ -4,3 +4,6 @@ node_modules/
 
 # Das Arbeitsblatt für die Stammliste – die App ist die Quelle, nicht die Datei.
 Packliste-Stammliste.xlsx
+
+# Der Vorschlag als Arbeitsblatt – dasselbe Argument wie oben.
+Packliste-Vorschlag.xlsx

@@ -31,11 +31,20 @@ import { WER_AUS_WHO } from './model.js';
 
 const NICHT_LENZ = ['basislager', 'hotel'];
 const NUR_CAMPER = ['basislager'];
-const KALT = ['herbst', 'winter'];
+const MIT_KUECHE = ['basislager', 'lenz'];
 const WINTER = ['winter'];
-const WARM = ['fruehling', 'sommer'];
+const SOMMER = ['sommer'];
+/*
+ * Zwei Jahreszeitsätze statt vier Einzelwerte. KUEHL und MILD überlappen sich
+ * im Frühling und im Herbst – ein warmer Maiabend braucht beides.
+ */
+const KUEHL = ['fruehling', 'herbst', 'winter'];
+const MILD = ['fruehling', 'sommer', 'herbst'];
 const KINDER = ['p3', 'p4'];
 const BIKE = ['mtb', 'gravel'];
+const BADEN = ['badi', 'wellness'];
+const AUSLAND = ['schengen', 'europa', 'fern'];
+const FERN = ['europa', 'fern'];
 
 /** Ein Teil mit fester Stückzahl. */
 export const tq = (label, qty = 1) => ({ label, qty, pronacht: false, plus: 0, cap: null });
@@ -106,66 +115,67 @@ export const SEED = [
   // KLEIDUNG
   // =========================================================================
   ...group('kleidung', [
-    // --- Erwachsene ---
-    i('kl.unterhosen', 'Unterhosen', { who: 'erwachsene', pn: 1, plus: 1, cap: 16, capWasch: 8 }),
-    i('kl.socken_lang', 'Socken lang', { who: 'erwachsene', pn: 1, cap: 12, capWasch: 8 }),
-    i('kl.socken_kurz', 'Socken kurz', { who: 'erwachsene', pn: 0.5, cap: 6, capWasch: 4, jz: WARM }),
-    i('kl.tshirt', 'T-Shirt', { who: 'erwachsene', pn: 1, cap: 10, capWasch: 7 }),
-    i('kl.bh', 'BHs', { who: 'p2' }),
-    i('kl.unterliibli', 'Unterliibli', { who: 'erwachsene', q: 3 }),
-    i('kl.hoodie', 'Hoodie / Pullover', { who: 'erwachsene', pn: 0.25, plus: 1, cap: 3 }),
-    i('kl.jaeggli', 'Jäggli', { who: 'p1', pn: 0.25, plus: 1, cap: 3 }),
+    i('kl.unterhosen', 'Unterhosen', { who: 'erwachsene', pn: 1, plus: 1, cap: 8 }),
+    i('kl.socken_lang', 'Socken lang', { who: 'erwachsene', pn: 1, plus: 1, cap: 8, jz: KUEHL }),
+    i('kl.socken_kurz', 'Socken kurz', { who: 'erwachsene', pn: 1, plus: 1, cap: 8, jz: SOMMER }),
+    i('kl.tshirt', 'T-Shirt', { who: 'erwachsene', pn: 1, plus: 1, cap: 8 }),
+    i('kl.bh', 'BHs', { who: 'p2', pn: 1, plus: 1, cap: 8 }),
+    i('kl.unterliibli', 'Unterliibli', { who: 'erwachsene', pn: 0.5, plus: 1, cap: 5 }),
+    i('kl.hoodie', 'Hoodie / Pullover', { who: 'erwachsene', pn: 0.25, cap: 3 }),
+    i('kl.jaeggli', 'Jäggli', { who: 'p1', pn: 0.25, cap: 3 }),
     i('kl.faserpelz', 'Faserpelz', { who: 'erwachsene' }),
     i('kl.midlayer', 'Midlayer', { who: 'erwachsene' }),
     i('kl.strickjacke', 'Strickjacke', { who: 'p2' }),
-    i('kl.hose_lang', 'Hose lang', { who: 'erwachsene', pn: 0.2, plus: 1, cap: 3 }),
-    i('kl.hose_kurz', 'Hose kurz', { who: 'erwachsene', pn: 0.2, plus: 1, cap: 3, jz: WARM }),
+    i('kl.hose_lang', 'Hose lang', { who: 'erwachsene', pn: 0.2, cap: 3 }),
+    i('kl.hose_kurz', 'Hose kurz', { who: 'erwachsene', pn: 0.2, cap: 3, jz: MILD }),
     i('kl.jeans_lang', 'Jeans lang', { who: 'p2' }),
-    i('kl.jeans_kurz', 'Jeans kurz', { who: 'p2', jz: WARM }),
+    i('kl.jeans_kurz', 'Jeans kurz', { who: 'p2', jz: MILD }),
     i('kl.stoffhose_lang', 'Stoffhose lang', { who: 'p2' }),
-    i('kl.stoffhose_kurz', 'Stoffhose kurz', { who: 'p2', jz: WARM }),
-    i('kl.leggings_kurz', 'Leggings kurz', { who: 'p2', jz: WARM }),
+    i('kl.stoffhose_kurz', 'Stoffhose kurz', { who: 'p2', jz: MILD }),
+    i('kl.leggings_kurz', 'Leggings kurz', { who: 'p2', jz: MILD }),
     i('kl.roeckli', 'Röckli', { who: 'p2' }),
     i('kl.wanderhose', 'Wanderhose', { who: 'erwachsene', akt: ['wandern'] }),
-    i('kl.trainerhose', 'Trainerhose', { who: 'erwachsene', pn: 0.2, plus: 1, cap: 2 }),
-    i('kl.sportshorts', 'Sportshorts', { who: 'p1', pn: 0.3, plus: 1, cap: 4, jz: WARM }),
-    i('kl.pyjama', 'Pyjama', { who: 'erwachsene' }),
-    i('kl.badehose', 'Badehose', { who: 'erwachsene', akt: ['badi', 'wellness'] }),
+    i('kl.trainerhose', 'Trainerhose', { who: 'erwachsene', pn: 0.25, cap: 3 }),
+    i('kl.sportshorts', 'Sportshorts', { who: 'p1', pn: 0.2, cap: 3, jz: MILD }),
+    i('kl.badehose', 'Badehose', { who: 'erwachsene', akt: BADEN }),
     i('kl.regenjacke', 'Regenjacke', { who: 'erwachsene' }),
     i('kl.rotauf', 'Rotauf Jacke', { who: 'p1', note: 'Abende auf 1250 m' }),
-    i('kl.wintermantel', 'Wintermantel', { who: 'p1', jz: WINTER }),
-    i('kl.winterjacke', 'Winterjacke', { who: 'p2', jz: KALT }),
-    i('kl.thermo', 'Thermounterwäsche', { who: 'erwachsene', q: 2, jz: WINTER }),
-    i('kl.winter_p1', 'Winterzubehör', { who: 'p1', jz: KALT, teile: ['Kappe', 'Schal', 'Handschuhe'] }),
-    i('kl.winter_p2', 'Winterzubehör', { who: 'p2', jz: KALT, teile: ['Stirnband', 'Halstuch', 'Handschuhe'] }),
+    i('kl.wintermantel', 'Wintermantel', { who: 'p1', jz: KUEHL }),
+    i('kl.winterjacke', 'Winterjacke', { who: 'p2', jz: KUEHL }),
+    i('kl.thermo', 'Thermounterwäsche', { who: 'erwachsene', pn: 0.25, cap: 3, jz: WINTER }),
+    i('kl.winter_p1', 'Winterzubehör', { who: 'p1', jz: KUEHL, teile: ['Kappe', 'Schal', 'Handschuhe'] }),
+    i('kl.winter_p2', 'Winterzubehör', { who: 'p2', jz: KUEHL, teile: ['Stirnband', 'Halstuch', 'Handschuhe'] }),
     i('kl.sonnenbrille', 'Sonnenbrille', { who: 'alle' }),
-    i('kl.sonnenhut', 'Sonnenhut', { who: 'alle', jz: WARM }),
+    i('kl.sonnenhut', 'Sonnenhut', { who: 'alle', jz: MILD }),
     i('kl.schick', 'Etwas Schickes für auswärts', { who: 'erwachsene', akt: ['ausgehen'] }),
 
-    // --- Kinder ---
-    i('ki.unterhosen', 'Unterhosen', { who: 'kinder', pn: 1, plus: 2, cap: 16, capWasch: 9 }),
-    i('ki.unterliibli', 'Unterliibli', { who: 'kinder', q: 3 }),
-    i('ki.socken', 'Socken', { who: 'kinder', pn: 1, plus: 2, cap: 16, capWasch: 9 }),
-    i('ki.tshirt', 'T-Shirt kurz und lang', { who: 'kinder', pn: 1, plus: 1, cap: 14, capWasch: 8 }),
-    i('ki.hose_lang', 'Hose lang', { who: 'p3', q: 2 }),
-    i('ki.hose_kurz', 'Hose kurz', { who: 'p3', q: 2, jz: WARM }),
-    i('ki.leggings_lang', 'Hosen / Leggings lang', { who: 'p4', q: 2 }),
-    i('ki.leggings_kurz', 'Hosen / Leggings kurz', { who: 'p4', q: 2, jz: WARM }),
-    i('ki.pullover', 'Pullover', { who: 'kinder', q: 2 }),
+    i('ki.unterhosen', 'Unterhosen', { who: 'kinder', pn: 1, plus: 2, cap: 9 }),
+    i('ki.unterliibli', 'Unterliibli', { who: 'kinder', pn: 0.5, plus: 2, cap: 6 }),
+    i('ki.socken', 'Socken', { who: 'kinder', pn: 1, plus: 2, cap: 9 }),
+    i('ki.tshirt', 'T-Shirt kurz und lang', { who: 'kinder', pn: 1, plus: 2, cap: 9 }),
+    i('ki.hose_lang', 'Hose lang', { who: 'p3', pn: 0.35, cap: 5 }),
+    i('ki.hose_kurz', 'Hose kurz', { who: 'p3', pn: 0.35, cap: 5, jz: MILD }),
+    i('ki.leggings_lang', 'Hosen / Leggings lang', { who: 'p4', pn: 0.35, cap: 5 }),
+    i('ki.leggings_kurz', 'Hosen / Leggings kurz', { who: 'p4', pn: 0.35, cap: 5, jz: MILD }),
+    i('ki.pullover', 'Pullover', { who: 'kinder', pn: 0.25, cap: 4 }),
     i('ki.faserpelz', 'Faserpelz', { who: 'kinder' }),
     i('ki.jacke', 'Jacke', { who: 'kinder' }),
     i('ki.regenzeug', 'Regenhose und Regenjacke', { who: 'kinder' }),
-    i('ki.pischi', 'Pischi kurz und lang', { who: 'kinder', q: 2 }),
-    i('ki.gesichtslumpen', 'Gesichtslumpen', { who: 'kinder', q: 3 }),
+    i('ki.gesichtslumpen', 'Gesichtslumpen', { who: 'kinder', q: 2 }),
     i('ki.kopfzeug', 'Kappe & Halstuch', { who: 'kinder', teile: ['Kappe', 'Halstuch'] }),
-    i('ki.handschuhe', 'Handschuhe', { who: 'kinder', jz: KALT }),
-    i('ki.rutschsocken', 'Rutschsocken / Finken', { who: 'kinder', jz: KALT }),
+    i('ki.handschuhe', 'Handschuhe', { who: 'kinder', jz: KUEHL }),
+    i('ki.rutschsocken', 'Rutschsocken / Finken', { who: 'kinder', jz: KUEHL }),
     i('ki.skianzug', 'Skianzug', { who: 'kinder', jz: WINTER }),
     i('ki.skisocken', 'Skisocken', { who: 'kinder', q: 2, jz: WINTER }),
     i('ki.skiunterwaesche', 'Skiunterwäsche', { who: 'p3', jz: WINTER }),
     i('ki.thermoleggings', 'Strumpfhose / Thermoleggings', { who: 'p4', q: 2, jz: WINTER }),
-    i('ki.badesachen', 'Badesachen', { who: 'kinder', akt: ['badi'], teile: ['Badehose', 'UV-Shirt', 'Badeponcho', 'Microfasertüechli'] }),
-    i('ki.latz', 'Latz', { who: 'p4', q: 2 }),
+    i('ki.badesachen', 'Badesachen', { who: 'kinder', akt: BADEN, teile: ['Badehose', 'UV-Shirt', 'Badeponcho', 'Microfasertüechli'] }),
+
+    i('kl.pyjama_kurz', 'Pyjama kurz', { who: 'erwachsene', pn: 0.15, cap: 2, jz: SOMMER }),
+    i('kl.pyjama_lang', 'Pyjama lang', { who: 'erwachsene', pn: 0.15, cap: 2, jz: KUEHL }),
+
+    i('ki.pischi_kurz', 'Pischi kurz', { who: 'kinder', pn: 0.15, cap: 3, jz: SOMMER }),
+    i('ki.pischi_lang', 'Pischi lang', { who: 'kinder', pn: 0.15, cap: 3, jz: KUEHL }),
   ]),
 
   // =========================================================================
@@ -173,58 +183,32 @@ export const SEED = [
   // =========================================================================
   ...group('schuhe', [
     i('sch.sneaker', 'Sneaker', { who: 'alle' }),
-    i('sch.sandalen', 'Sandalen', { who: 'alle', jz: WARM }),
+    i('sch.sandalen', 'Sandalen', { who: 'alle', jz: MILD }),
     i('sch.birkenstock_p1', 'Birkenstock schwarz', { who: 'p1' }),
     i('sch.birkenstock_p2', 'Birkenstock türkis', { who: 'p2' }),
     i('sch.trekking', 'Trekkingschuhe', { who: 'erwachsene' }),
     i('sch.wanderschuhe_kind', 'Wanderschuhe', { who: 'kinder' }),
     i('sch.gummistiefel', 'Gummistiefel', { who: 'kinder' }),
-    i('sch.winterschuhe', 'Winterschuhe', { who: 'alle', jz: KALT }),
+    i('sch.winterschuhe', 'Winterschuhe', { who: 'alle', jz: KUEHL }),
   ]),
 
   // =========================================================================
   // BAD & APOTHEKE
   // =========================================================================
   ...group('bad', [
-    i('bad.necessaire_p1', 'Necessaire', {
-      who: 'p1',
-      teile: [
-        'Zahnbürste', 'Zahnpasta', 'Duschmittel', 'Deo', 'Haargel', 'Haarspray',
-        'Kamm', 'Bürste', 'Ladegerät',
-        // In Lenz liegt beides schon dort, und für zwei Nächte lohnt es nicht.
-        nur(tq('Rasierer'), { arten: NICHT_LENZ, min: 5 }),
-        nur(tq('Trimmer'), { arten: NICHT_LENZ, min: 5 }),
-      ],
-    }),
+    i('bad.necessaire_p1', 'Necessaire', { who: 'p1', teile: ['Zahnbürste', 'Zahnpasta', nur(tq('Duschmittel'), { arten: NUR_CAMPER }), 'Deo', 'Haargel', 'Haarspray', 'Kamm', 'Bürste', 'Ladegerät', nur(tq('Rasierer'), { arten: NICHT_LENZ, min: 5 }), nur(tq('Trimmer'), { arten: NICHT_LENZ, min: 5 })] }),
     i('bad.medis_p1', 'Medis', { who: 'p1', teile: ['Pantoprazol', 'Symbicort', 'Incruse', 'Nasenspray'] }),
-    i('bad.necessaire_p2', 'Necessaire', {
-      who: 'p2',
-      teile: [
-        'Zahnbürste', 'Zahnpasta', 'Bürste', 'Gesichtscreme', 'Handcreme', 'Deo',
-        'Duschmittel', 'Shampoo und Conditioner', 'Nagelschere', 'Pinzette',
-        'Ohrenstäbli', 'OBs, Säckli und Binden',
-        nur(tq('Rasierer'), { arten: NICHT_LENZ, min: 5 }),
-      ],
-    }),
+    i('bad.necessaire_p2', 'Necessaire', { who: 'p2', teile: ['Zahnbürste', 'Zahnpasta', 'Bürste', 'Gesichtscreme', 'Handcreme', 'Deo', nur(tq('Duschmittel'), { arten: NUR_CAMPER }), 'Shampoo und Conditioner', 'Nagelschere', 'Pinzette', 'Ohrenstäbli', 'OBs, Säckli und Binden', nur(tq('Rasierer'), { arten: NICHT_LENZ, min: 5 })] }),
     i('bad.medis_p2', 'Medikamente', { who: 'p2' }),
     i('bad.epilierer', 'Epilierer', { who: 'p2' }),
-    i('bad.kinder', 'Bad Kinder', {
-      dabei: KINDER,
-      teile: ['Duschtüechli Kinder', 'Bürsten Kinder', 'Shampoo Kinder', 'Zahnbürsten und Zahnpasta'],
-    }),
+    i('bad.kinder', 'Bad Kinder', { dabei: KINDER, teile: [nur(tq('Duschtüechli Kinder'), { arten: NUR_CAMPER }), 'Bürsten Kinder', 'Shampoo Kinder', 'Zahnbürsten und Zahnpasta'] }),
     i('bad.ersatztuechli', 'Ersatztüechli', { arten: NICHT_LENZ }),
     i('bad.duschtuechli', 'Duschtüechli alle', { arten: NUR_CAMPER }),
-    i('bad.badetuecher', 'Grosse Badetücher extra', { q: 2, akt: ['badi'], arten: NICHT_LENZ }),
+    i('bad.badetuecher', 'Grosse Badetücher extra', { q: 2, arten: NICHT_LENZ, akt: BADEN }),
     i('bad.sonnencreme', 'Sonnencreme', { note: 'Höhensonne' }),
     i('bad.nastuechli', 'Nastüechli'),
     i('bad.toilettentuecher', 'Toilettenfeuchttücher', { dabei: KINDER }),
-    i('bad.apotheke', 'Apotheke', {
-      teile: [
-        'Pflaster', 'Steristrip', 'Schmerztabletten', 'Schmerzsirup Kinder', 'Itinerolzäpfli',
-        'Fiebermesser', 'Arnicachügeli / Salbe', 'Perskindol', 'Pulmex', 'Fenistil',
-        'Insektenspray', 'Imodium', 'Augentropfen', 'Nasenspray', 'Aftersun',
-      ],
-    }),
+    i('bad.apotheke', 'Apotheke', { teile: ['Pflaster', 'Steristrip', 'Schmerztabletten', nur(tq('Schmerzsirup Kinder'), { dabei: KINDER }), 'Itinerolzäpfli', 'Fiebermesser', 'Arnicachügeli / Salbe', 'Perskindol', 'Pulmex', 'Fenistil', 'Insektenspray', 'Imodium', 'Augentropfen', 'Nasenspray', 'Aftersun'] }),
   ]),
 
   // =========================================================================
@@ -232,16 +216,16 @@ export const SEED = [
   // =========================================================================
   ...group('dokumente', [
     i('do.id', 'Identitätskarte', { who: 'erwachsene' }),
-    i('do.fahrausweis', 'Führerausweis', { who: 'erwachsene', arten: NUR_CAMPER }),
+    i('do.fahrausweis', 'Führerausweis', { who: 'erwachsene' }),
     i('do.ausweise_kinder', 'Ausweise Kinder', { dabei: KINDER }),
     i('do.krankenkasse', 'Krankenkassenkarten'),
     i('do.karten', 'Kredit-/Debitkarte', { who: 'erwachsene' }),
-    i('do.fahrzeugpapiere', 'Fahrzeugpapiere & Vignette', { arten: NUR_CAMPER }),
+    i('do.fahrzeugpapiere', 'Fahrzeugpapiere & Vignette'),
     i('do.reservation', 'Reservation Camping auf dem Handy', { arten: NUR_CAMPER }),
     i('do.skipass', 'Skipass / Voucher', { akt: ['ski'] }),
-    i('do.bargeld', 'Bargeld', { akt: ['fest'] }),
-    i('do.pass', 'Reisepass', { who: 'alle', reg: ['europa', 'fern'] }),
-    i('do.fremdwaehrung', 'Fremdwährung besorgen', { reg: ['europa', 'fern'] }),
+    i('do.bargeld', 'Bargeld'),
+    i('do.pass', 'Reisepass', { who: 'alle', reg: FERN }),
+    i('do.fremdwaehrung', 'Fremdwährung besorgen', { reg: AUSLAND }),
     i('do.buchungen', 'Buchungen offline gespeichert', { arten: ['hotel'] }),
   ]),
 
@@ -258,65 +242,33 @@ export const SEED = [
     i('te.handy', 'Handy & Ladekabel', { who: 'erwachsene' }),
     i('te.powerbank', 'Powerbank'),
     i('te.mehrfachstecker', 'Mehrfachstecker', { min: 3 }),
-    i('te.halter', 'Handyhalterung & Autoladekabel', { arten: NUR_CAMPER }),
+    i('te.halter', 'Handyhalterung & Autoladekabel'),
     i('te.foehn', 'Föhn', { arten: NUR_CAMPER }),
     i('te.offline', 'Offline-Karten & Musik geladen'),
-    i('te.adapter', 'Reiseadapter', { reg: ['europa', 'fern'] }),
-    i('te.roaming', 'Roaming / Reisepaket aktivieren', { reg: ['schengen', 'europa', 'fern'] }),
+    i('te.adapter', 'Reiseadapter', { reg: AUSLAND }),
+    i('te.roaming', 'Roaming / Reisepaket aktivieren', { reg: AUSLAND }),
   ]),
 
   // =========================================================================
   // VELO
   // =========================================================================
   ...group('velo', [
-    i('ve.velokleider_p1', 'Velokleider', {
-      who: 'p1',
-      akt: BIKE,
-      teile: [
-        tq('Trikot Bike kurz', 2), tq('Trikot Bike lang', 2), tq('Bikehose lang'),
-        tn('Velohosen kurz', 0.15, 1, 4), tn('Velounterliibli', 0.2, 2, 5),
-        tn('Velosocken', 0.2, 2, 6), tn('Pampers', 0.2, 2, 5),
-        tn('Handschuhe', 0.25, 0, 4), tq('Veste'), tq('Dirtsuit kurz'),
-      ],
-    }),
-    i('ve.velokleider_p2', 'Velokleider', {
-      who: 'p2',
-      akt: BIKE,
-      teile: [tn('Velohosen', 0.15, 1, 4), tq('Trikot', 2), tn('Velounterliibli', 0.2, 2, 5), tn('Velosocken', 0.2, 2, 6)],
-    }),
-    i('ve.gravel_p1', 'Gravel-Trikots & Gravelhelm', { who: 'p1', akt: ['gravel'], pn: 0.6, plus: 1, cap: 4 }),
-    i('ve.velozubehoer_p1', 'Velozubehör', {
-      who: 'p1',
-      akt: BIKE,
-      teile: [
-        'Endurohelm', 'Bikehelm', 'Velobrille', 'Knieschoner', 'Rückenpanzer', 'Hipbag',
-        'Bikerucksack', 'Klickschuhe', 'Flatschuhe', 'Garmin gross', 'Garmin klein',
-        'Pulsgurt', tq('Bidon', 2), 'Getränkepulver',
-      ],
-    }),
-    i('ve.velozubehoer_p2', 'Velozubehör', {
-      who: 'p2',
-      akt: BIKE,
-      teile: ['Helm', 'Bikebrille', 'Schoner & Panzer', 'Bikerucksack', 'Bikeschuhe'],
-    }),
-    i('ve.crafty', 'Crafty Christoph', {
-      akt: ['mtb'],
-      dabei: ['p1'],
-      teile: ['Ladegerät', 'AXS Ladegerät', 'AXS Akkus'],
-    }),
-    i('ve.wild', 'Wild Debora', { akt: ['mtb'], dabei: ['p2'], teile: ['Ladegerät'] }),
-    i('ve.terra', 'Terra Christoph', { akt: ['gravel'], dabei: ['p1'] }),
-    i('ve.velokiste', 'Velokiste', {
-      akt: BIKE,
-      teile: ['Pumpe', 'Werkzeug', 'Ersatzteile', 'Ersatz-Schaltauge', 'Kettenöl', 'Reiniger', 'Bürste', 'Reinigungslumpen'],
-    }),
+    i('ve.velokleider_p1', 'Velokleider', { who: 'p1', akt: BIKE, teile: [tq('Trikot Bike kurz', 2), tq('Trikot Bike lang', 2), 'Bikehose lang', tn('Velohosen kurz', 0.15, 1, 4), tn('Velounterliibli', 0.2, 2, 5), tn('Velosocken', 0.2, 2, 6), tn('Pampers', 0.2, 2, 5), tn('Handschuhe', 0.25, 0, 4), 'Veste', 'Dirtsuit kurz'] }),
+    i('ve.velokleider_p2', 'Velokleider', { who: 'p2', akt: BIKE, teile: [tn('Velohosen', 0.15, 1, 4), tq('Trikot', 2), tn('Velounterliibli', 0.2, 2, 5), tn('Velosocken', 0.2, 2, 6)] }),
+    i('ve.gravel_p1', 'Gravel-Trikots & Gravelhelm', { who: 'p1', pn: 0.6, plus: 1, cap: 4, akt: ['gravel'] }),
+    i('ve.velozubehoer_p1', 'Velozubehör', { who: 'p1', akt: BIKE, teile: ['Endurohelm', 'Bikehelm', 'Velobrille', 'Knieschoner', 'Rückenpanzer', 'Hipbag', 'Bikerucksack', 'Klickschuhe', 'Flatschuhe', 'Garmin gross', 'Garmin klein', 'Pulsgurt', tq('Bidon', 2), 'Getränkepulver'] }),
+    i('ve.velozubehoer_p2', 'Velozubehör', { who: 'p2', akt: BIKE, teile: ['Helm', 'Bikebrille', 'Schoner & Panzer', 'Bikerucksack', 'Bikeschuhe'] }),
+    i('ve.crafty', 'Crafty Christoph', { who: 'p1', akt: ['mtb'], teile: ['Ladegerät', 'AXS Ladegerät', 'AXS Akkus'] }),
+    i('ve.wild', 'Wild Debora', { who: 'p2', akt: ['mtb'], teile: ['Ladegerät'] }),
+    i('ve.terra', 'Terra Christoph', { who: 'p1', akt: ['gravel'] }),
+    i('ve.velokiste', 'Velokiste', { akt: BIKE, teile: ['Pumpe', 'Werkzeug', 'Ersatzteile', 'Ersatz-Schaltauge', 'Kettenöl', 'Reiniger', 'Bürste', 'Reinigungslumpen'] }),
     i('ve.ladegeraete', 'Ladegerät E-Bike', { q: 2, akt: BIKE }),
     i('ve.batterie', 'Batterie + Ladegerät Schaltung', { akt: BIKE }),
     i('ve.abschleppseil', 'Abschleppseil', { q: 2, akt: ['mtb'] }),
-    i('ve.trampivelo_p3', 'Trampivelo Laurin', { dabei: ['p3'] }),
-    i('ve.schaltvelo_p3', 'Schaltvelo Laurin', { dabei: ['p3'], akt: BIKE }),
-    i('ve.laufvelo_p4', 'Laufvelo Noemi', { dabei: ['p4'] }),
-    i('ve.trampivelo_p4', 'Trampivelo Noemi', { dabei: ['p4'] }),
+    i('ve.trampivelo_p3', 'Trampivelo Laurin', { who: 'p3' }),
+    i('ve.schaltvelo_p3', 'Schaltvelo Laurin', { who: 'p3', akt: BIKE }),
+    i('ve.laufvelo_p4', 'Laufvelo Noemi', { who: 'p4' }),
+    i('ve.trampivelo_p4', 'Trampivelo Noemi', { who: 'p4' }),
     i('ve.helm_p3', 'Helm & Fullfacehelm', { who: 'p3' }),
     i('ve.schoner_p3', 'Schoner', { who: 'p3', akt: BIKE }),
     i('ve.bikebrille_p3', 'Bikebrille', { who: 'p3', akt: BIKE }),
@@ -336,20 +288,12 @@ export const SEED = [
     i('au.wanderstoecke', 'Wanderstöcke', { who: 'erwachsene', akt: ['wandern'] }),
     i('au.wanderkarte', 'Wanderkarte / App Region', { akt: ['wandern'] }),
     i('au.trage', 'Trage', { dabei: ['p4'] }),
-    i('au.tragerucksack', 'Tragerucksack', { dabei: KINDER, akt: ['wandern'] }),
-    i('au.fluegeli', 'Flügeli + Schwimmbrettli', { akt: ['badi'], dabei: KINDER }),
+    i('au.tragerucksack', 'Tragerucksack', { akt: ['wandern'], dabei: KINDER }),
+    i('au.fluegeli', 'Flügeli + Schwimmbrettli', { akt: BADEN, dabei: KINDER }),
     i('au.picknickdecke', 'Picknickdecke'),
-    i('au.kuehltasche', 'Kühltasche', { arten: NUR_CAMPER }),
-    i('au.ski', 'Skiausrüstung', {
-      who: 'alle',
-      akt: ['ski'],
-      teile: ['Ski & Stöcke', 'Skihelm', 'Skibrille', 'Skihandschuhe'],
-    }),
-    i('au.klettern', 'Kletterausrüstung', {
-      who: 'erwachsene',
-      akt: ['klettern'],
-      teile: ['Klettergurt', 'Kletterschuhe', 'Magnesia'],
-    }),
+    i('au.kuehltasche', 'Kühltasche'),
+    i('au.ski', 'Skiausrüstung', { who: 'alle', akt: ['ski'], teile: ['Ski & Stöcke', 'Skihelm', 'Skibrille', 'Skihandschuhe'] }),
+    i('au.klettern', 'Kletterausrüstung', { who: 'erwachsene', akt: ['klettern'], teile: ['Klettergurt', 'Kletterschuhe', 'Magnesia'] }),
   ]),
 
   // =========================================================================
@@ -368,18 +312,11 @@ export const SEED = [
     i('kd.vitamin_p4', 'Vitamin D3', { who: 'p4' }),
     i('kd.windeln_p4', 'Windeln', { who: 'p4', pn: 5, plus: 5 }),
     i('kd.windelcreme_p4', 'Windelcreme + Feuchttücher', { who: 'p4' }),
-    i('kd.badewindeln_p4', 'Badewindeln', { who: 'p4', akt: ['badi'] }),
-    i('kd.fahrt', 'Spielzeug für die Fahrt', {
-      dabei: KINDER,
-      teile: ['Maltablet', 'Rätselhefter', 'Zeichnungsmappe', 'Kleberlibuch', 'UNO Spiel', 'Schleichtiere', 'Autöli'],
-    }),
-    i('kd.draussen', 'Draussen-Spielzeug', {
-      dabei: KINDER,
-      arten: NICHT_LENZ,
-      teile: ['Ball', 'Strassenkreide', 'Seifenbläterli', 'Sändelisachen'],
-    }),
-    i('kd.drachen', 'Lenkdrachen', { dabei: ['p3'], jz: WARM, note: 'nur bei Motta Naluns' }),
-    i('kd.molton', 'Molton 140×200', { dabei: KINDER, arten: NICHT_LENZ }),
+    i('kd.badewindeln_p4', 'Badewindeln', { who: 'p4', akt: BADEN }),
+    i('kd.fahrt', 'Spielzeug für die Fahrt', { dabei: KINDER, teile: ['Maltablet', 'Rätselhefter', 'Zeichnungsmappe', 'Kleberlibuch', 'UNO Spiel', 'Schleichtiere', 'Autöli'] }),
+    i('kd.draussen', 'Draussen-Spielzeug', { arten: NICHT_LENZ, dabei: KINDER, teile: ['Ball', 'Strassenkreide', 'Seifenbläterli', 'Sändelisachen'] }),
+    i('kd.drachen', 'Lenkdrachen', { jz: MILD, dabei: ['p3'], note: 'nur bei Motta Naluns' }),
+    i('kd.molton', 'Molton 140×200', { arten: NICHT_LENZ, dabei: KINDER }),
   ]),
 
   // =========================================================================
@@ -388,16 +325,13 @@ export const SEED = [
   ...group('kueche', [
     i('ku.kaffee', 'Kaffee + Milchschäumer', { arten: NUR_CAMPER }),
     i('ku.kuehlschrank', 'Essen aus Kühlschrank'),
-    i('ku.gefrierer', 'Essen aus Gefrierer', { arten: ['basislager', 'lenz'] }),
-    i('ku.keller', 'Essen aus Keller', { arten: ['basislager', 'lenz'] }),
+    i('ku.gefrierer', 'Essen aus Gefrierer', { arten: MIT_KUECHE }),
+    i('ku.keller', 'Essen aus Keller', { arten: MIT_KUECHE }),
     i('ku.kueche', 'Essen aus Küche'),
-    i('ku.hoernli', 'Hörnli', { arten: ['basislager', 'lenz'] }),
-    i('ku.gewuerze', 'Gewürze', {
-      arten: NUR_CAMPER,
-      teile: ['Öl', 'Essig', 'Salz', 'Paprika', 'Zwiebel', 'Frühlingskräuter', 'Balsamico', 'Bouillon', 'Härdöpfelgwürz'],
-    }),
+    i('ku.hoernli', 'Hörnli', { arten: MIT_KUECHE }),
+    i('ku.gewuerze', 'Gewürze', { arten: NUR_CAMPER, teile: ['Öl', 'Essig', 'Salz', 'Paprika', 'Zwiebel', 'Frühlingskräuter', 'Balsamico', 'Bouillon', 'Härdöpfelgwürz'] }),
     i('ku.ruestmesser', 'Rüstmesser', { q: 2, arten: NUR_CAMPER }),
-    i('ku.kinderbesteck', 'Kinderbesteck', { dabei: KINDER, arten: NUR_CAMPER }),
+    i('ku.kinderbesteck', 'Kinderbesteck', { arten: NUR_CAMPER, dabei: KINDER }),
     i('ku.schwingbesen', 'Schwingbesen', { arten: NUR_CAMPER }),
     i('ku.haushaltspapier', 'Haushaltspapier', { arten: NUR_CAMPER }),
     i('ku.lumpen', 'Lumpen blau + Abtrocknungstücher blau', { arten: NUR_CAMPER }),
@@ -416,7 +350,7 @@ export const SEED = [
     i('ha.waeschesack', 'Wäschesack'),
     i('ha.frische_waesche', 'Frische Wäsche aus Waschküche'),
     i('ha.waeschestaender', 'Wäscheständer + Chlüppli', { arten: NUR_CAMPER }),
-    i('ha.kleiderbuegel', 'Kleiderbügel'),
+    i('ha.kleiderbuegel', 'Kleiderbügel', { arten: NICHT_LENZ }),
     i('ha.zweitschluessel', 'Zweitschlüssel'),
     i('ha.taschenlampe', 'Taschenlampe / Stirnlampe'),
     i('ha.lautsprecher', 'UE Boom / Sonos Roam'),
@@ -443,9 +377,9 @@ export const SEED = [
   // REISETAG
   // =========================================================================
   ...group('reisetag', [
-    i('rt.warnweste', 'Warnweste & Pannendreieck', { arten: NUR_CAMPER }),
-    i('rt.schneeketten', 'Schneeketten', { arten: NUR_CAMPER, jz: WINTER }),
-    i('rt.tanken', 'Tanken & Reifendruck prüfen', { arten: NUR_CAMPER }),
+    i('rt.warnweste', 'Warnweste & Pannendreieck'),
+    i('rt.schneeketten', 'Schneeketten', { jz: KUEHL }),
+    i('rt.tanken', 'Tanken & Reifendruck prüfen'),
     i('rt.unterhaltung', 'Unterhaltung für die Fahrt bereit', { dabei: KINDER }),
     i('rt.adresse', 'Adresse & Anfahrt notiert', { arten: ['hotel'] }),
   ]),
@@ -464,7 +398,7 @@ export const SEED = [
     i('ko.kompost', 'Kompost hochgestellt'),
     i('ko.gartenruemli', 'Gartenrüümli abgeschlossen'),
     i('ko.fenster', 'Fenster & Türen geschlossen'),
-    i('ko.heizung', 'Heizung runtergedreht', { jz: KALT }),
+    i('ko.heizung', 'Heizung runtergedreht', { jz: KUEHL }),
     i('ko.abwesenheit', 'Abwesenheitsnotiz im Mail', { min: 4 }),
     i('ko.frischwasser', 'Frischwasser voll', { arten: NUR_CAMPER }),
     i('ko.abwasser', 'Abwasser und Kassette leer', { arten: NUR_CAMPER }),

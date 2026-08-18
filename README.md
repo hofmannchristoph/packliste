@@ -6,7 +6,7 @@ Packliste für die Familie Hofmann. Eine Reise wird angelegt mit **Art, Anzahl N
 - PWA – auf dem iPhone über *Teilen → Zum Home-Bildschirm* wie eine echte App
 - Funktioniert offline, Änderungen werden nachgetragen
 - Live-Sync zwischen mehreren Geräten
-- Mengen rechnen sich aus den Nächten: 1 Nacht → 2 Unterhosen, 10 Nächte → 11, in Lenz mit Waschmaschine → 8
+- Mengen rechnen sich aus den Nächten und aus einer festgehaltenen Annahme, wie oft gewaschen wird: 1 Nacht → 2 Unterhosen, 3 Nächte → 4, ab 7 Nächten → 8. Siehe [`ANNAHMEN.md`](ANNAHMEN.md)
 - Zwei Gliederungsebenen: **nach Person** mit Bereichen darunter (Christoph › Velo › Trikot kurz), oder **nach Bereich** mit Personen darunter
 - Text-Export zum Weiterschicken
 
@@ -95,17 +95,28 @@ Der Ausgangsstand steht in [`src/seed.js`](src/seed.js) und wird nur beim ersten
 
 ### Woher die Zahlen kommen
 
-Die Mengen sind an den bisherigen Papierlisten kalibriert, an den beiden Extremen gleichzeitig:
+Die Mengen sind **gerechnet, nicht gewählt**. Grundlage sind drei Annahmen je Kleidergruppe, festgehalten in [`ANNAHMEN.md`](ANNAHMEN.md): wie viele Nächte ein Stück deckt (Tragedauer), wie oft unterwegs gewaschen wird (Waschrhythmus), und wie viel Reserve dazukommt. Daraus folgt die Regel:
 
-| | Scuol, 3 Nächte | Campingferien, 14 Nächte |
+    Faktor   = 1 / Tragedauer
+    Max      = aufrunden(Waschrhythmus / Tragedauer) + Reserve
+    Zuschlag = Reserve, nur bei täglich Gewechseltem
+
+**Die Obergrenze ist damit der Waschrhythmus** – die Grösse, die vorher nirgends stand und ohne die die Deckel willkürlich aussahen.
+
+| | Hotel, 3 Nächte | Camper, 14 Nächte |
 | --- | --- | --- |
-| Unterhosen | 4 (Liste: 3) | 15 (Liste: 16) |
-| T-Shirt | 3 (Liste: 3) | 10 (Liste: 10) |
-| Socken lang | 3 (Liste: 3) | 12 (Liste: 12) |
-| Velohosen kurz | 2 (Liste: 2) | 4 (Liste: 4) |
-| Velosocken | 3 (Liste: 3) | 5 (Liste: 6) |
+| Unterhosen | 4 | 8 |
+| T-Shirt | 4 | 8 |
+| Socken | 4 | 8 |
+| Unterliibli | 3 | 5 |
+| Hose lang | 1 | 3 |
+| Pyjama | 1 | 2 |
+| Velohosen kurz | 2 | 4 |
+| Velosocken | 3 | 5 |
 
-Velokleider skalieren bewusst flach mit Deckel – unterwegs wird gewaschen, darum braucht es bei vierzehn Nächten nicht das Fünffache von drei Nächten.
+Velokleider skalieren bewusst flach mit Deckel – unterwegs wird gewaschen, darum braucht es bei vierzehn Nächten nicht das Fünffache von drei Nächten. Ihr eigener Waschrhythmus ist noch nicht erhoben, ihre Mengen stammen deshalb weiter aus den Papierlisten.
+
+Warum die Zahlen früher anders waren und woran die alte Herleitung scheiterte, steht in [`KALIBRIERUNG.md`](KALIBRIERUNG.md).
 
 ### Gliederung der Liste
 
@@ -264,7 +275,9 @@ Zeichendauer stehen bewusst nicht darin; dafür braucht es einen echten Browser.
 | `src/icons.js` | Strich-Icons als inline SVG |
 | `src/generator.js` | Stammliste + Angaben → Liste, inkl. Zusammenführen mit dem bestehenden Stand |
 | `src/store.js` | Zustand, localStorage, Merge-Logik für den Sync |
-| `KALIBRIERUNG.md` | Warum die Mengen und Bedingungen so stehen, wie sie stehen – vor jeder Überarbeitung der Strategie lesen |
+| `ANNAHMEN.md` | Die Annahmen, aus denen die Mengen **gerechnet** sind – Tragedauer, Waschrhythmus, Reserve. Wer eine Menge ändern will, ändert hier |
+| `KALIBRIERUNG.md` | Wie die Zahlen entstehen, welche Bedingungen erlaubt sind und was bewusst nicht drinsteht – vor jeder Überarbeitung der Strategie lesen |
+| `OFFEN.md` | Fragen, die nur die Familie beantworten kann, mit gemessener Wirkung. Nichts davon ist umgesetzt |
 | `src/liste.js` | Welche Zeilen sichtbar sind und wie sie gruppiert werden – ohne DOM, damit die Zusicherung „jede gezählte Zeile wird gezeigt" prüfbar bleibt |
 | `src/tabelle.js` | Stammliste als Tabelle aus- und einlesen |
 | `src/sync.js` | Supabase mit Realtime |
