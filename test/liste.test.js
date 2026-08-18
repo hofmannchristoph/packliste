@@ -95,3 +95,33 @@ test('Fortschritt und Anzeige stimmen überein, wenn ein Behälter aus der Regel
   const sichtbar = gezeigt(liste, gen, trip, store.bereiche());
   assert.equal(sichtbar.size, pr.total, `gezählt ${pr.total}, gezeigt ${sichtbar.size}`);
 });
+
+test('eine eingetragene 0 als Obergrenze gilt als Grenze', async () => {
+  const { amount, teilMenge } = await import('../src/generator.js');
+  const p = { naechte: 9, waschmaschine: false };
+  assert.equal(amount({ qtyMode: 'pronacht', qty: 1, cap: 0 }, p), 1, 'cap 0 darf nicht "keine Grenze" heissen');
+  assert.equal(amount({ qtyMode: 'pronacht', qty: 1, cap: 3 }, p), 3);
+  assert.equal(amount({ qtyMode: 'pronacht', qty: 1 }, p), 9, 'ohne Grenze bleibt es bei der Rechnung');
+  assert.equal(teilMenge({ qty: 1, pronacht: true, cap: 0 }, p), 1);
+});
+
+test('Bruchfaktoren runden ohne Gleitkomma-Rest auf', async () => {
+  const { amount } = await import('../src/generator.js');
+  assert.equal(amount({ qtyMode: 'pronacht', qty: 0.14 }, { naechte: 50 }), 7, '0.14 x 50 ist genau 7');
+  assert.equal(amount({ qtyMode: 'pronacht', qty: 0.25 }, { naechte: 4 }), 1);
+  assert.equal(amount({ qtyMode: 'pronacht', qty: 0.25 }, { naechte: 5 }), 2);
+});
+
+test('gleichnamige Teile eines Behälters bleiben getrennt', async () => {
+  const { wantedItems } = await import('../src/generator.js');
+  const trip = {
+    params: { art: 'hotel', naechte: 2, jahreszeit: 'sommer', region: 'inland', aktivitaeten: [], mit: ['p1'], waschmaschine: false },
+    master: {
+      'm:x': { id: 'm:x', label: 'Tasche', category: 'velo', wer: ['p1'], qtyMode: 'fest', qty: 1,
+        arten: [], aktivitaeten: [], jahreszeiten: [], regionen: [], wennDabei: [], minNaechte: 0,
+        teile: [{ label: 'Bidon', qty: 1 }, { label: 'Bidon', qty: 1 }] },
+    },
+  };
+  const teile = [...wantedItems(trip).values()].filter((it) => it.parentId);
+  assert.equal(teile.length, 2, 'zwei gleichnamige Teile dürfen nicht zu einem werden');
+});

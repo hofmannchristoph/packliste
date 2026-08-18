@@ -21,6 +21,7 @@ import {
   tripRevision,
   haushaltRevision,
   persist,
+  schreibe,
   emit,
   emitStatus,
 } from './store.js';
@@ -39,8 +40,41 @@ const pushedRev = new Map();
  * Reisen überhaupt gibt.
  */
 let letzteTripSignatur = null;
+/**
+ * Solange der erste Abruf läuft, wird nicht hochgeladen.
+ *
+ * `connect()` setzte den Client, bevor `pullAll()` durch war – ein Upload
+ * konnte damit die ganze Zeile überschreiben, ohne den fremden Stand je
+ * gesehen zu haben.
+ */
+let erstabrufOffen = false;
+/** Läuft gerade ein Upload für diese Zeile? Schützt vor überholenden Schreibern. */
+const inFlight = new Map();
 
 const tripSignatur = () => Object.keys(state.data.trips).sort().join(',');
+
+/**
+ * Aus einem Anbieterfehler etwas machen, das weiterhilft.
+ *
+ * Vorher wurde jede Störung zur selben Zeile „Hochladen fehlgeschlagen" –
+ * Netz weg, Zeile zu gross und Schlüssel abgelaufen sahen gleich aus, obwohl
+ * die Antworten darauf völlig verschieden sind.
+ */
+export function fehlerText(err) {
+  const roh = String(err?.message ?? err ?? '');
+  const code = err?.code ?? err?.status ?? '';
+  if (/Zeitüberschreitung|dauerte zu lange/i.test(roh)) return 'Das Netz antwortet nicht – wird nachgeholt.';
+  if (/Failed to fetch|NetworkError|Load failed/i.test(roh)) return 'Keine Verbindung – wird nachgeholt.';
+  if (String(code) === '413' || /too large|payload/i.test(roh))
+    return 'Die Liste ist zu gross für den Server. Archivierte Reisen löschen schafft Platz.';
+  if (['401', '403'].includes(String(code)) || /JWT|apikey|Invalid API key/i.test(roh))
+    return 'Der Zugang wurde abgelehnt. Stimmt der Schlüssel unter Sync noch?';
+  if (['429'].includes(String(code)) || /rate limit/i.test(roh))
+    return 'Zu viele Anfragen – der Abgleich wartet kurz.';
+  if (/violates row-level security|new row violates/i.test(roh))
+    return 'Der Server hat die Änderung abgelehnt (Zugriffsregel).';
+  return roh || 'Unbekannter Fehler';
+}
 
 /**
  * Sync-Zustand melden.
@@ -85,8 +119,12 @@ export async function connect() {
     return false;
   }
   setStatus('connecting', 'Verbinde …');
+  // Vor dem ersten Abruf darf nichts hochgeladen werden, sonst überschreibt ein
+  // veralteter lokaler Stand die Zeile, bevor er den fremden je gesehen hat.
+  erstabrufOffen = true;
   try {
-    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.110.2');
+    // Liegt unter vendor/ – siehe vendor/README.md. Kein Fremd-CDN zur Laufzeit.
+    const { createClient } = await import('../vendor/supabase-js-2.110.2.mjs');
     client = createClient(state.config.url.replace(/\/+$/, ''), state.config.key, {
       auth: { persistSession: false },
       realtime: { params: { eventsPerSecond: 5 } },
@@ -98,9 +136,11 @@ export async function connect() {
   try {
     await mitFrist(pullAll(), MIT_FRIST, 'Abrufen dauerte zu lange');
   } catch (err) {
-    setStatus('error', 'Abrufen fehlgeschlagen', String(err?.message ?? err));
+    erstabrufOffen = false;
+    setStatus('error', 'Abrufen fehlgeschlagen', fehlerText(err));
     return false;
   }
+  erstabrufOffen = false;
   subscribeRealtime();
   setStatus('live', 'Live verbunden');
   return true;
@@ -129,7 +169,7 @@ function subscribeRealtime() {
   channel = client
     .channel('packlists-live')
     .on('postgres_changes', { event: '*', schema: 'public', table: TABLE }, (payload) => {
-      if (payload.new?.data) applyRemote(payload.new.data);
+      if (payload.new?.data) applyRemote(payload.new.data, payload.new.id);
     })
     .subscribe((status) => {
       if (status === 'SUBSCRIBED') {
@@ -150,15 +190,44 @@ function subscribeRealtime() {
     });
 }
 
-function applyRemote(row) {
-  if (!row) return;
+/**
+ * Gehört diese Zeile überhaupt zu uns?
+ *
+ * Der Realtime-Kanal hört auf die ganze Tabelle, nicht auf unseren Haushalt.
+ * Ohne diese Prüfung wanderte die Stammliste eines fremden Haushalts direkt in
+ * den lokalen Zustand – heute gibt es nur einen, aber die Annahme steht
+ * nirgends und trägt nicht.
+ */
+function gehoertUns(row, id) {
+  const hid = state.data.householdId;
+  if (row.kind === 'household') return (id ?? hid) === hid;
+  if (row.kind === 'trip') {
+    const bekannt = Object.prototype.hasOwnProperty.call(state.data.trips, row.id);
+    // Neue Reisen kommen nur über das Verzeichnis unseres Haushalts herein.
+    return bekannt || erwarteteTrips.has(row.id);
+  }
+  return false;
+}
+
+/** Reise-IDs, die das Verzeichnis unseres Haushalts nennt. */
+const erwarteteTrips = new Set();
+
+function applyRemote(row, id = null) {
+  if (!row || typeof row !== 'object') return;
+  if (!gehoertUns(row, id)) return;
   if (row.kind === 'household') {
     mergeHaushalt(row);
+    for (const t of row.tripIds ?? []) erwarteteTrips.add(t);
     // Reisen, die das andere Gerät kennt, nachladen.
     const fehlend = (row.tripIds ?? []).filter((id) => !state.data.trips[id] && !istGeloescht(id));
     persist();
     emit();
-    if (fehlend.length) pullTrips(fehlend).catch(() => {});
+    if (fehlend.length) {
+      // Vorher verschluckt: fehlten Reisen dauerhaft, erfuhr das niemand.
+      pullTrips(fehlend).catch((err) =>
+        setStatus('error', 'Reisen konnten nicht geladen werden', fehlerText(err))
+      );
+    }
     // Kennt die Gegenseite Reisen von uns noch nicht, Verzeichnis nachtragen.
     // Gelöschte zählen nicht mit, sonst holt man sie sich gegenseitig zurück.
     const bekannt = new Set(row.tripIds ?? []);
@@ -182,7 +251,7 @@ async function pullTrips(ids) {
   if (!client || !offen.length) return;
   const { data, error } = await client.from(TABLE).select('id,data').in('id', offen);
   if (error) throw error;
-  for (const r of data ?? []) applyRemote(r.data);
+  for (const r of data ?? []) applyRemote(r.data, r.id);
 }
 
 /** Haushalt-Zeile und alle bekannten Reisen holen. */
@@ -191,7 +260,7 @@ export async function pullAll() {
   const hid = state.data.householdId;
   const { data: hh, error: hhErr } = await client.from(TABLE).select('id,data').eq('id', hid).maybeSingle();
   if (hhErr) throw hhErr;
-  if (hh?.data) applyRemote(hh.data);
+  if (hh?.data) applyRemote(hh.data, hh.id);
   else pushHousehold(0);
 
   const ids = Object.keys(state.data.trips);
@@ -199,7 +268,12 @@ export async function pullAll() {
     const { data, error } = await client.from(TABLE).select('id,data').in('id', ids);
     if (error) throw error;
     const bekannt = new Set((data ?? []).map((r) => r.id));
-    for (const r of data ?? []) applyRemote(r.data);
+    for (const r of data ?? []) applyRemote(r.data, r.id);
+    /*
+     * Was das Verzeichnis nennt, aber als Zeile fehlt, wird nachgetragen.
+     * Umgekehrt bleibt eine Reise, die es nur hier gibt, nicht liegen – beides
+     * konnte vorher dauerhaft auseinanderlaufen.
+     */
     for (const id of ids) if (!bekannt.has(id)) push(id, 0);
   }
 }
@@ -230,7 +304,25 @@ export async function joinHousehold(code) {
   return (data.data.tripIds ?? []).length;
 }
 
+/**
+ * Eine Zeile hochladen – aber nie zwei Uploads derselben Zeile gleichzeitig.
+ *
+ * Ohne diese Sperre konnten zwei Aufrufe in falscher Reihenfolge ankommen und
+ * ein älterer Stand den neueren in der Datenbank überschreiben.
+ */
 async function upsert(id, payload) {
+  const laufend = inFlight.get(id);
+  if (laufend) await laufend.catch(() => {});
+  const versprechen = upsertJetzt(id, payload);
+  inFlight.set(id, versprechen);
+  try {
+    return await versprechen;
+  } finally {
+    if (inFlight.get(id) === versprechen) inFlight.delete(id);
+  }
+}
+
+async function upsertJetzt(id, payload) {
   const { error } = await mitFrist(
     client.from(TABLE).upsert({ id, data: payload, updated_at: new Date().toISOString() }),
     MIT_FRIST,
@@ -241,7 +333,7 @@ async function upsert(id, payload) {
 
 /** Stammliste und Reiseverzeichnis hochladen. */
 export function pushHousehold(delay = 600) {
-  if (!isConfigured() || !navigator.onLine) return;
+  if (!isConfigured() || !navigator.onLine || erstabrufOffen) return;
   const id = state.data.householdId;
   clearTimeout(pushTimers.get(id));
   pushTimers.set(
@@ -272,7 +364,7 @@ export function pushHousehold(delay = 600) {
         pushedRev.set(id, rev);
         letzteTripSignatur = signatur;
       } catch (err) {
-        setStatus('error', 'Hochladen fehlgeschlagen', String(err?.message ?? err));
+        setStatus('error', 'Hochladen fehlgeschlagen', fehlerText(err));
       }
     }, delay)
   );
@@ -280,7 +372,7 @@ export function pushHousehold(delay = 600) {
 
 /** Eine Reise hochladen, gebündelt gegen schnelles Abhaken. */
 export function push(tripId, delay = 500) {
-  if (!isConfigured() || !tripId || !navigator.onLine) return;
+  if (!isConfigured() || !tripId || !navigator.onLine || erstabrufOffen) return;
   clearTimeout(pushTimers.get(tripId));
   pushTimers.set(
     tripId,
@@ -298,7 +390,7 @@ export function push(tripId, delay = 500) {
         pushedRev.set(tripId, rev);
         if (state.syncStatus.mode !== 'live') setStatus('live', 'Live verbunden');
       } catch (err) {
-        setStatus('error', 'Hochladen fehlgeschlagen', String(err?.message ?? err));
+        setStatus('error', 'Hochladen fehlgeschlagen', fehlerText(err));
       }
     }, delay)
   );
@@ -312,6 +404,24 @@ export function pushAll() {
 }
 
 export function initAutoSync() {
+  /*
+   * Beim Verlassen zählt jede Millisekunde: lokal lagen Änderungen bis zu
+   * 120 ms und der Upload bis zu 600 ms in der Warteschlange. Wer die App
+   * wegwischt, verlor genau die.
+   */
+  const abschliessen = () => {
+    schreibe();
+    for (const [, t] of pushTimers) clearTimeout(t);
+    pushTimers.clear();
+    if (!isConfigured() || !navigator.onLine || erstabrufOffen) return;
+    pushHousehold(0);
+    for (const id of Object.keys(state.data.trips)) push(id, 0);
+  };
+  window.addEventListener('pagehide', abschliessen);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') abschliessen();
+  });
+
   window.addEventListener('online', () => connect());
   window.addEventListener('offline', () => setStatus('offline', 'Offline – wird nachgetragen'));
   document.addEventListener('visibilitychange', () => {

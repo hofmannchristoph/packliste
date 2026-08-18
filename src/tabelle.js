@@ -107,11 +107,28 @@ function zerlegeWerte(zelle, kandidaten) {
   return out;
 }
 
-const zahl = (zelle, standard = 0) => {
+/**
+ * Zahl aus einer Zelle, mit Wertebereich.
+ *
+ * Vorher wurde alles genommen, was `Number` verdaute: eine negative Obergrenze,
+ * ein Faktor von 900 oder ein Tippfehler wanderten unbemerkt in die Regeln und
+ * fielen erst auf, wenn die Liste absurde Mengen zeigte.
+ */
+const zahl = (zelle, standard = 0, { min = null, max = null, feld = null, fehler = null, zeilenNr = 0 } = {}) => {
   const roh = String(zelle ?? '').trim().replace(',', '.');
   if (!roh) return standard;
   const n = Number(roh);
-  return Number.isFinite(n) ? n : standard;
+  if (!Number.isFinite(n)) {
+    fehler?.push(`Zeile ${zeilenNr}: ${feld ?? 'Zahl'} »${roh}« ist keine Zahl.`);
+    return standard;
+  }
+  if ((min !== null && n < min) || (max !== null && n > max)) {
+    fehler?.push(
+      `Zeile ${zeilenNr}: ${feld ?? 'Zahl'} ${n} liegt ausserhalb des Erlaubten (${min ?? '−∞'} bis ${max ?? '∞'}).`
+    );
+    return standard;
+  }
+  return n;
 };
 
 const JA = ['x', 'ja', 'j', 'yes', 'y', '1', 'wahr', 'true', 'X'];
@@ -452,7 +469,7 @@ export function leseTabelle(text, { bereiche = [], aktivitaeten = [] } = {}) {
     return [...new Set(out)];
   };
 
-  const master = {};
+  const master = Object.create(null);
   const reihenfolge = [];
   let letzterEintrag = null;
   /*
@@ -484,16 +501,19 @@ export function leseTabelle(text, { bereiche = [], aktivitaeten = [] } = {}) {
     const istTeil = Boolean(teilVon);
     const category = bereichVon(zelle(reihe, 'bereich'), zeilenNr);
 
+    const z = (feldname, standard, min, max, anzeige) =>
+      zahl(zelle(reihe, feldname), standard, { min, max, feld: anzeige, fehler, zeilenNr });
+
     const gemeinsam = {
       label,
-      qty: zahl(zelle(reihe, 'anzahl'), 1) || 1,
-      plus: zahl(zelle(reihe, 'plus'), 0),
-      cap: zelle(reihe, 'cap') ? zahl(zelle(reihe, 'cap'), 0) : null,
+      qty: z('anzahl', 1, 0, 999, 'Anzahl') || 1,
+      plus: z('plus', 0, 0, 99, 'Zuschlag'),
+      cap: zelle(reihe, 'cap') !== '' ? z('cap', 0, 0, 999, 'Max') : null,
       arten: feste(zelle(reihe, 'arten'), ARTEN, 'Reiseart', fehler, zeilenNr),
       aktivitaeten: aktVon(zelle(reihe, 'aktivitaeten')),
       jahreszeiten: feste(zelle(reihe, 'jahreszeiten'), JAHRESZEITEN, 'Jahreszeit', fehler, zeilenNr),
       wennDabei: personen(zelle(reihe, 'wenndabei'), fehler, zeilenNr, 'Nur wenn dabei'),
-      minNaechte: zahl(zelle(reihe, 'minnaechte'), 0),
+      minNaechte: z('minnaechte', 0, 0, 365, 'Ab Nächten'),
     };
 
     if (istTeil) {
@@ -519,8 +539,25 @@ export function leseTabelle(text, { bereiche = [], aktivitaeten = [] } = {}) {
       continue;
     }
 
+    /*
+     * Schlüssel prüfen, bevor er zum Objektschlüssel wird.
+     *
+     * Erlaubt ist, was der Export selbst schreibt. Und drei Namen sind
+     * ausgeschlossen, weil sie in JavaScript keine gewöhnlichen Schlüssel sind:
+     * `__proto__` würde nicht einen Eintrag anlegen, sondern den Prototyp der
+     * ganzen Stammliste austauschen.
+     */
+    const roherSchluessel = zelle(reihe, 'schluessel');
+    if (roherSchluessel && !/^[A-Za-z0-9:._-]{1,80}$/.test(roherSchluessel)) {
+      fehler.push(`Zeile ${zeilenNr}: der Schlüssel »${roherSchluessel}« enthält unerlaubte Zeichen.`);
+      continue;
+    }
+    if (['__proto__', 'constructor', 'prototype'].includes(roherSchluessel)) {
+      fehler.push(`Zeile ${zeilenNr}: »${roherSchluessel}« ist als Schlüssel nicht zulässig.`);
+      continue;
+    }
     const schluessel =
-      zelle(reihe, 'schluessel') ||
+      roherSchluessel ||
       `m:${slug(zelle(reihe, 'bereich')).slice(0, 6)}.${slug(label)}${
         zelle(reihe, 'wer') ? `.${slug(zelle(reihe, 'wer')).slice(0, 6)}` : ''
       }`;
@@ -537,7 +574,7 @@ export function leseTabelle(text, { bereiche = [], aktivitaeten = [] } = {}) {
       category,
       wer: personen(zelle(reihe, 'wer'), fehler, zeilenNr),
       qtyMode: istJa(zelle(reihe, 'pronacht')) ? 'pronacht' : 'fest',
-      capWasch: zelle(reihe, 'capwasch') ? zahl(zelle(reihe, 'capwasch'), 0) : null,
+      capWasch: zelle(reihe, 'capwasch') !== '' ? z('capwasch', 0, 0, 999, 'Max mit Waschmaschine') : null,
       regionen: feste(zelle(reihe, 'regionen'), REGIONEN, 'Region', fehler, zeilenNr),
       note: zelle(reihe, 'note'),
       teile: [],

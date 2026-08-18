@@ -34,6 +34,28 @@ const LS_HAUSHALT = 'packliste.haushalt.v1';
 /** Ein unlesbarer Zustand wird hierhin beiseitegelegt, statt überschrieben zu werden. */
 const LS_DEFEKT = 'packliste.state.v3.defekt';
 
+/**
+ * Zeitquelle für alle Zeitstempel.
+ *
+ * Sämtliche Konfliktentscheide beruhen auf der Uhr des Geräts. Geht eine davon
+ * nach – oder springt sie beim Zeitzonenwechsel zurück –, verliert das Gerät
+ * jeden Vergleich, dauerhaft und unbemerkt. Der Versatz gegenüber der zuletzt
+ * gesehenen fremden Zeit wird deshalb mitgeführt, und die eigene Zeit läuft
+ * nie rückwärts.
+ */
+let versatz = 0;
+export function jetzt() {
+  return Date.now() + versatz;
+}
+
+/** Einen fremden Zeitstempel als Hinweis auf die tatsächliche Zeit nehmen. */
+export function beachteFremdeZeit(ts) {
+  if (typeof ts !== 'number' || !Number.isFinite(ts)) return;
+  const abstand = ts - jetzt();
+  // Nur vorwärts nachziehen, und nur bei deutlicher Abweichung.
+  if (abstand > 5000) versatz += abstand;
+}
+
 export function randomId(len = 20) {
   const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
   const bytes = new Uint8Array(len);
@@ -61,7 +83,7 @@ function alsSammlung(list, now) {
 }
 
 function emptyState() {
-  const now = Date.now();
+  const now = jetzt();
   return {
     version: 3,
     householdId: randomId(),
@@ -127,7 +149,7 @@ export function setzeSpeicherFehler(art, text) {
  * Aktivitäten bekommen ihre eigene Sammlung.
  */
 function migriere(daten) {
-  const now = Date.now();
+  const now = jetzt();
   const eintrag = (m) => ({
     ...m,
     wer: Array.isArray(m.wer) ? m.wer : m.who ? WER_AUS_WHO[m.who] ?? [m.who] : [],
@@ -147,7 +169,20 @@ function migriere(daten) {
   }
   d.master = stamm(d.master);
   d.trips = Object.fromEntries(
-    Object.entries(d.trips ?? {}).map(([id, t]) => [id, { ...t, master: stamm(t.master) }])
+    Object.entries(d.trips ?? {}).map(([id, t]) => [
+      id,
+      {
+        ...t,
+        master: stamm(t.master),
+        // Frühere Grabsteine verworfener Einträge waren blosse Zeitstempel.
+        dismissed: Object.fromEntries(
+          Object.entries(t.dismissed ?? {}).map(([k, v]) => [
+            k,
+            typeof v === 'number' ? { weg: true, ts: v } : v,
+          ])
+        ),
+      },
+    ])
   );
   if (!d.geloescht) {
     d.geloescht = {};
@@ -185,7 +220,7 @@ export function load() {
       // Eine leere Stammliste wäre eine Sackgasse – dann neu aussäen.
       if (!Object.keys(state.data.master).length) {
         state.data.master = seedMaster();
-        state.data.masterUpdatedAt = Date.now();
+        state.data.masterUpdatedAt = jetzt();
       }
     }
   } catch (err) {
@@ -274,7 +309,7 @@ export function setActiveTrip(id) {
 
 /** Neue Reise mit einer Kopie des aktuellen Stammlisten-Stands. */
 export function createTrip({ name, params }) {
-  const now = Date.now();
+  const now = jetzt();
   const trip = {
     id: randomId(),
     name: name || 'Reise',
@@ -299,7 +334,7 @@ export function createTrip({ name, params }) {
  * Grabstein zurück, der selbst synchronisiert wird.
  */
 export function deleteTrip(id) {
-  const now = Date.now();
+  const now = jetzt();
   delete state.data.trips[id];
   state.data.geloescht[id] = { weg: true, ts: now };
   state.data.geloeschtUpdatedAt = now;
@@ -318,7 +353,7 @@ export function deleteTrip(id) {
  */
 export function undoDeleteTrip(kopie) {
   if (!kopie?.id) return;
-  const now = Date.now();
+  const now = jetzt();
   state.data.trips[kopie.id] = JSON.parse(JSON.stringify(kopie));
   state.data.geloescht[kopie.id] = { weg: false, ts: now };
   state.data.geloeschtUpdatedAt = now;
@@ -330,19 +365,59 @@ export function undoDeleteTrip(kopie) {
 export const istGeloescht = (id) => state.data.geloescht?.[id]?.weg === true;
 
 /** Reisen entfernen, für die ein gültiger Grabstein vorliegt. */
+/**
+ * Was der Grabstein sagt, wird angewandt – aber nicht blind.
+ *
+ * Hat das andere Gerät die Reise gelöscht, während hier noch abgehakt wurde,
+ * verschwand sie vorher ohne ein Wort, und die geöffnete Ansicht fiel auf
+ * „Keine Reise geöffnet." zurück. Ist die eigene Arbeit jünger als die
+ * Löschung, bleibt die Reise stehen und die Löschung wird zurückgenommen –
+ * eine wiederhergestellte Reise ist leichter erneut zu löschen als eine
+ * verlorene wiederherzustellen.
+ */
 function grabsteineAnwenden() {
+  const zurueck = [];
   for (const [id, eintrag] of Object.entries(state.data.geloescht ?? {})) {
     if (!eintrag?.weg) continue;
-    if (state.data.trips[id]) delete state.data.trips[id];
+    const trip = state.data.trips[id];
+    if (!trip) continue;
+    if (juengsteAenderung(trip) > (eintrag.ts ?? 0)) {
+      zurueck.push(id);
+      continue;
+    }
+    delete state.data.trips[id];
     if (state.data.activeTripId === id) state.data.activeTripId = null;
   }
+  if (zurueck.length) {
+    const now = jetzt();
+    for (const id of zurueck) state.data.geloescht[id] = { weg: false, ts: now };
+    state.data.geloeschtUpdatedAt = now;
+  }
+  return zurueck;
 }
 
+/** Wann wurde an dieser Reise zuletzt etwas getan? */
+function juengsteAenderung(trip) {
+  let max = Math.max(trip.paramsUpdatedAt ?? 0, trip.nameUpdatedAt ?? 0, trip.archivedUpdatedAt ?? 0);
+  for (const it of Object.values(trip.items ?? {})) max = Math.max(max, it.updatedAt ?? 0);
+  return max;
+}
+
+/**
+ * Name oder Archivstatus ändern.
+ *
+ * Jedes Feld bekommt seinen eigenen Zeitstempel, damit der Abgleich es einzeln
+ * entscheiden kann – ein gemeinsamer Stempel liess Umbenennen und Archivieren
+ * einander überschreiben.
+ */
 export function setTripMeta(tripId, patch) {
   const trip = state.data.trips[tripId];
   if (!trip) return;
+  const now = jetzt();
   Object.assign(trip, patch);
-  trip.paramsUpdatedAt = Date.now();
+  if ('name' in patch) trip.nameUpdatedAt = now;
+  if ('archived' in patch) trip.archivedUpdatedAt = now;
+  trip.paramsUpdatedAt = now;
   persist();
   emit();
 }
@@ -351,7 +426,7 @@ export function setParams(tripId, patch) {
   const trip = state.data.trips[tripId];
   if (!trip) return;
   trip.params = { ...trip.params, ...patch };
-  trip.paramsUpdatedAt = Date.now();
+  trip.paramsUpdatedAt = jetzt();
   persist();
   emit();
 }
@@ -362,7 +437,7 @@ export function refreshTripMaster(tripId) {
   if (!trip) return;
   trip.master = JSON.parse(JSON.stringify(state.data.master));
   trip.masterCopiedAt = state.data.masterUpdatedAt;
-  trip.paramsUpdatedAt = Date.now();
+  trip.paramsUpdatedAt = jetzt();
   persist();
 }
 
@@ -377,7 +452,7 @@ export function tripMasterVeraltet(trip) {
 export function patchItem(tripId, itemId, patch) {
   const trip = state.data.trips[tripId];
   if (!trip?.items[itemId]) return;
-  trip.items[itemId] = { ...trip.items[itemId], ...patch, updatedAt: Date.now() };
+  trip.items[itemId] = { ...trip.items[itemId], ...patch, updatedAt: jetzt() };
   persist();
   emit();
 }
@@ -396,7 +471,7 @@ export function addManualItem(tripId, { label, category, qty = 1, assignee = 'ge
     deleted: false,
     note: '',
     source: 'manual',
-    updatedAt: Date.now(),
+    updatedAt: jetzt(),
   };
   persist();
   emit();
@@ -407,8 +482,9 @@ export function removeItem(tripId, itemId) {
   const trip = state.data.trips[tripId];
   const item = trip?.items[itemId];
   if (!item) return;
-  trip.items[itemId] = { ...item, deleted: true, updatedAt: Date.now() };
-  if (item.source === 'auto') trip.dismissed[itemId] = Date.now();
+  const now = jetzt();
+  trip.items[itemId] = { ...item, deleted: true, updatedAt: now };
+  if (item.source === 'auto') trip.dismissed[itemId] = { weg: true, ts: now };
   persist();
   emit();
 }
@@ -417,12 +493,21 @@ export function removeItem(tripId, itemId) {
 export function undoRemoveItem(tripId, itemIds) {
   const trip = state.data.trips[tripId];
   if (!trip) return;
-  const now = Date.now();
+  const now = jetzt();
   for (const id of [].concat(itemIds)) {
     const item = trip.items[id];
     if (!item) continue;
     trip.items[id] = { ...item, deleted: false, updatedAt: now };
-    delete trip.dismissed[id];
+    /*
+     * Nicht löschen, sondern zurücknehmen.
+     *
+     * Ein entfernter Eintrag hinterliess bisher nur einen Zeitstempel, und
+     * beim Zusammenführen gewann immer der grössere. Ein Widerruf verschwand
+     * damit beim nächsten Abgleich wieder, und der Eintrag blieb zwar sichtbar,
+     * wurde aber von jeder Neuberechnung übersprungen – Menge und Name froren
+     * ein. Der Grabstein trägt jetzt, wie bei den Reisen, auch die Richtung.
+     */
+    trip.dismissed[id] = { weg: false, ts: now };
   }
   persist();
   emit();
@@ -431,9 +516,13 @@ export function undoRemoveItem(tripId, itemIds) {
 export function restoreDismissed(tripId) {
   const trip = state.data.trips[tripId];
   if (!trip) return;
-  trip.dismissed = {};
+  const now = jetzt();
+  for (const id of Object.keys(trip.dismissed ?? {})) trip.dismissed[id] = { weg: false, ts: now };
   persist();
 }
+
+/** Ist dieser Eintrag aus der Reise geworfen worden? */
+export const istVerworfen = (dismissed, id) => dismissed?.[id]?.weg === true;
 
 // ---------------------------------------------------------------------------
 // Bereiche und Aktivitäten
@@ -474,9 +563,9 @@ export function addBereich({ label, ico = 'doc' }) {
     ico,
     order: naechsteOrder(state.data.bereiche),
     deleted: false,
-    updatedAt: Date.now(),
+    updatedAt: jetzt(),
   };
-  state.data.bereicheUpdatedAt = Date.now();
+  state.data.bereicheUpdatedAt = jetzt();
   persist();
   emit();
   return id;
@@ -485,8 +574,8 @@ export function addBereich({ label, ico = 'doc' }) {
 export function patchBereich(id, patch) {
   const cur = state.data.bereiche[id];
   if (!cur) return;
-  state.data.bereiche[id] = { ...cur, ...patch, updatedAt: Date.now() };
-  state.data.bereicheUpdatedAt = Date.now();
+  state.data.bereiche[id] = { ...cur, ...patch, updatedAt: jetzt() };
+  state.data.bereicheUpdatedAt = jetzt();
   persist();
   emit();
 }
@@ -503,7 +592,7 @@ export function bereichBelegung(id) {
 export function removeBereich(id, zielId) {
   const cur = state.data.bereiche[id];
   if (!cur) return;
-  const now = Date.now();
+  const now = jetzt();
   if (zielId) {
     for (const m of Object.values(state.data.master)) {
       if (m.category === id) state.data.master[m.id] = { ...m, category: zielId, updatedAt: now };
@@ -523,9 +612,9 @@ export function addAktivitaet(label) {
     label,
     order: naechsteOrder(state.data.aktivitaeten),
     deleted: false,
-    updatedAt: Date.now(),
+    updatedAt: jetzt(),
   };
-  state.data.aktivitaetenUpdatedAt = Date.now();
+  state.data.aktivitaetenUpdatedAt = jetzt();
   persist();
   emit();
   return id;
@@ -534,8 +623,8 @@ export function addAktivitaet(label) {
 export function patchAktivitaet(id, patch) {
   const cur = state.data.aktivitaeten[id];
   if (!cur) return;
-  state.data.aktivitaeten[id] = { ...cur, ...patch, updatedAt: Date.now() };
-  state.data.aktivitaetenUpdatedAt = Date.now();
+  state.data.aktivitaeten[id] = { ...cur, ...patch, updatedAt: jetzt() };
+  state.data.aktivitaetenUpdatedAt = jetzt();
   persist();
   emit();
 }
@@ -550,7 +639,7 @@ export function aktivitaetBelegung(id) {
 export function removeAktivitaet(id) {
   const cur = state.data.aktivitaeten[id];
   if (!cur) return;
-  const now = Date.now();
+  const now = jetzt();
   for (const m of Object.values(state.data.master)) {
     if ((m.aktivitaeten ?? []).includes(id)) {
       state.data.master[m.id] = {
@@ -618,9 +707,9 @@ export function addMasterItem(patch) {
     ...mitWer(patch),
     id,
     deleted: false,
-    updatedAt: Date.now(),
+    updatedAt: jetzt(),
   };
-  state.data.masterUpdatedAt = Date.now();
+  state.data.masterUpdatedAt = jetzt();
   persist();
   emit();
   return id;
@@ -629,8 +718,8 @@ export function addMasterItem(patch) {
 export function patchMasterItem(id, patch) {
   const cur = state.data.master[id];
   if (!cur) return;
-  state.data.master[id] = { ...cur, ...mitWer(patch), updatedAt: Date.now() };
-  state.data.masterUpdatedAt = Date.now();
+  state.data.master[id] = { ...cur, ...mitWer(patch), updatedAt: jetzt() };
+  state.data.masterUpdatedAt = jetzt();
   persist();
   emit();
 }
@@ -638,8 +727,8 @@ export function patchMasterItem(id, patch) {
 export function removeMasterItem(id) {
   const cur = state.data.master[id];
   if (!cur) return;
-  state.data.master[id] = { ...cur, deleted: true, updatedAt: Date.now() };
-  state.data.masterUpdatedAt = Date.now();
+  state.data.master[id] = { ...cur, deleted: true, updatedAt: jetzt() };
+  state.data.masterUpdatedAt = jetzt();
   persist();
   emit();
 }
@@ -648,8 +737,8 @@ export function removeMasterItem(id) {
 export function undoRemoveMasterItem(id) {
   const cur = state.data.master[id];
   if (!cur) return;
-  state.data.master[id] = { ...cur, deleted: false, updatedAt: Date.now() };
-  state.data.masterUpdatedAt = Date.now();
+  state.data.master[id] = { ...cur, deleted: false, updatedAt: jetzt() };
+  state.data.masterUpdatedAt = jetzt();
   persist();
   emit();
 }
@@ -665,14 +754,8 @@ export function undoRemoveMasterItem(id) {
  * Gibt den vorherigen Stand zurück, damit ein Fehlgriff widerrufbar bleibt.
  */
 export function ersetzeStammliste({ master, bereiche: neueBereiche, aktivitaeten: neueAkt }) {
-  const now = Date.now();
-  const vorher = JSON.parse(
-    JSON.stringify({
-      master: state.data.master,
-      bereiche: state.data.bereiche,
-      aktivitaeten: state.data.aktivitaeten,
-    })
-  );
+  const now = jetzt();
+  const vorher = { ...stammlisteSichern(), importZeit: now };
 
   const master2 = {};
   for (const [id, alt] of Object.entries(state.data.master)) {
@@ -712,13 +795,26 @@ export function ersetzeStammliste({ master, bereiche: neueBereiche, aktivitaeten
  */
 export function stelleStammlisteWiederHer(vorher) {
   if (!vorher) return;
-  const now = Date.now();
-  const zurueck = (jetzt, alt) => {
-    const out = {};
-    for (const [id, e] of Object.entries(jetzt)) out[id] = { ...e, deleted: true, updatedAt: now };
+  const now = jetzt();
+  /*
+   * Nur zurücknehmen, was der Import angefasst hat.
+   *
+   * Vorher wurde jeder heutige Eintrag als gelöscht markiert und dann der alte
+   * Stand darübergelegt – was das zweite Gerät in der Zwischenzeit angelegt
+   * hatte, verschwand dabei mit. Jetzt bleibt unberührt, was in keinem der
+   * beiden Stände des Imports vorkam.
+   */
+  const zurueck = (heute, alt) => {
+    const out = { ...heute };
+    for (const [id, e] of Object.entries(heute)) {
+      const warVorher = Object.prototype.hasOwnProperty.call(alt, id);
+      const kamVomImport = (e.updatedAt ?? 0) >= (importZeit ?? 0);
+      if (!warVorher && kamVomImport) out[id] = { ...e, deleted: true, updatedAt: now };
+    }
     for (const [id, e] of Object.entries(alt)) out[id] = { ...e, updatedAt: now };
     return out;
   };
+  const importZeit = vorher.importZeit ?? 0;
   state.data.master = zurueck(state.data.master, vorher.master);
   state.data.masterUpdatedAt = now;
   state.data.bereiche = zurueck(state.data.bereiche, vorher.bereiche);
@@ -742,7 +838,7 @@ export function stammlisteSichern() {
 
 export function resetMaster() {
   state.data.master = seedMaster();
-  state.data.masterUpdatedAt = Date.now();
+  state.data.masterUpdatedAt = jetzt();
   persist();
   emit();
 }
@@ -776,6 +872,8 @@ function mergeById(a = {}, b = {}) {
   const out = {};
   const eigen = a ?? {};
   const fremd = b ?? {};
+  // Fremde Zeitstempel verraten, ob die eigene Uhr nachgeht.
+  for (const e of Object.values(fremd)) beachteFremdeZeit(e?.updatedAt);
   for (const id of new Set([...Object.keys(eigen), ...Object.keys(fremd)])) {
     const x = eigen[id];
     const y = brauchbar(fremd[id]) ? fremd[id] : null;
@@ -793,18 +891,36 @@ function mergeById(a = {}, b = {}) {
   return out;
 }
 
+/** Frühere Grabsteine waren blosse Zeitstempel; jetzt tragen sie die Richtung mit. */
+const grabstein = (e) => (typeof e === 'number' ? { weg: true, ts: e } : e ?? null);
+
 export function mergeTrips(local, remote) {
   if (!remote) return local;
   if (!local) return remote;
+  /*
+   * Kopfdaten feldweise, nicht als Block.
+   *
+   * Vorher entschied ein einziger Zeitstempel über Name, Angaben und Archiv
+   * gemeinsam: wer auf einem Gerät die Nächte änderte, während der andere die
+   * Reise umbenannte, verlor eine der beiden Änderungen vollständig.
+   */
+  const feld = (name, stempel) =>
+    (remote[stempel] ?? 0) > (local[stempel] ?? 0) ? remote[name] : local[name];
   const neuer = (remote.paramsUpdatedAt ?? 0) > (local.paramsUpdatedAt ?? 0) ? remote : local;
   const dismissed = { ...(local.dismissed ?? {}) };
   for (const [k, v] of Object.entries(remote.dismissed ?? {})) {
-    dismissed[k] = Math.max(dismissed[k] ?? 0, v);
+    const a = grabstein(dismissed[k]);
+    const b = grabstein(v);
+    dismissed[k] = (b?.ts ?? 0) > (a?.ts ?? 0) ? b : a ?? b;
   }
   return {
     ...neuer,
     id: local.id,
-    createdAt: Math.min(local.createdAt ?? Date.now(), remote.createdAt ?? Date.now()),
+    name: feld('name', 'nameUpdatedAt') ?? neuer.name,
+    nameUpdatedAt: Math.max(local.nameUpdatedAt ?? 0, remote.nameUpdatedAt ?? 0) || undefined,
+    archived: feld('archived', 'archivedUpdatedAt') ?? neuer.archived,
+    archivedUpdatedAt: Math.max(local.archivedUpdatedAt ?? 0, remote.archivedUpdatedAt ?? 0) || undefined,
+    createdAt: Math.min(local.createdAt ?? jetzt(), remote.createdAt ?? jetzt()),
     master: mergeById(local.master, remote.master),
     items: mergeById(local.items, remote.items),
     dismissed,
@@ -831,15 +947,15 @@ export function uebernehmeHaushalt(row) {
   }
   if (row.master) {
     state.data.master = JSON.parse(JSON.stringify(row.master));
-    state.data.masterUpdatedAt = row.masterUpdatedAt ?? Date.now();
+    state.data.masterUpdatedAt = row.masterUpdatedAt ?? jetzt();
   }
   if (row.bereiche) {
     state.data.bereiche = JSON.parse(JSON.stringify(row.bereiche));
-    state.data.bereicheUpdatedAt = row.bereicheUpdatedAt ?? Date.now();
+    state.data.bereicheUpdatedAt = row.bereicheUpdatedAt ?? jetzt();
   }
   if (row.aktivitaeten) {
     state.data.aktivitaeten = JSON.parse(JSON.stringify(row.aktivitaeten));
-    state.data.aktivitaetenUpdatedAt = row.aktivitaetenUpdatedAt ?? Date.now();
+    state.data.aktivitaetenUpdatedAt = row.aktivitaetenUpdatedAt ?? jetzt();
   }
 }
 

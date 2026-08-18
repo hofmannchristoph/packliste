@@ -5,7 +5,7 @@
  * den Namen dieses Caches aus. Bei jeder Veröffentlichung hochzählen.
  */
 
-const VERSION = 'packliste-v25';
+const VERSION = 'packliste-v26';
 /** So lange darf das Netz brauchen, bevor der Cache einspringt. */
 const NETZ_FRIST_MS = 2000;
 const SHELL = [
@@ -24,6 +24,8 @@ const SHELL = [
   'src/generator.js',
   'src/store.js',
   'src/sync.js',
+  'src/liste.js',
+  'vendor/supabase-js-2.110.2.mjs',
   'src/tabelle.js',
 ];
 

@@ -28,11 +28,24 @@ export function matches(item, p) {
 }
 
 /** Menge für eine Reise: feste Stückzahl oder aus den Nächten gerechnet. */
+/**
+ * Menge eines Eintrags für diese Reise.
+ *
+ * Zwei Feinheiten, die vorher falsch waren: Eine ausdrücklich eingetragene 0
+ * als Obergrenze wurde als „keine Grenze" gelesen, weil `0` unwahr ist – aus
+ * `cap: 0` wurden bei neun Nächten neun Stück. Und das Aufrunden traf bei
+ * Bruchfaktoren die Gleitkomma-Ungenauigkeit: 0.14 × 50 ergibt 7.000000000001
+ * und damit acht statt sieben.
+ */
+const gesetzt = (w) => typeof w === 'number' && Number.isFinite(w);
+/** Aufrunden mit etwas Toleranz gegen Gleitkomma-Reste. */
+const aufrunden = (x) => Math.ceil(Number(x.toFixed(6)));
+
 export function amount(item, p) {
   if (item.qtyMode !== 'pronacht') return Math.max(1, Math.round(item.qty || 1));
-  const roh = Math.ceil((item.qty || 1) * p.naechte) + (item.plus || 0);
-  const grenze = p.waschmaschine && item.capWasch ? item.capWasch : item.cap;
-  return Math.max(1, grenze ? Math.min(roh, grenze) : roh);
+  const roh = aufrunden((item.qty || 1) * p.naechte) + (item.plus || 0);
+  const grenze = p.waschmaschine && gesetzt(item.capWasch) ? item.capWasch : item.cap;
+  return Math.max(1, gesetzt(grenze) ? Math.min(roh, grenze) : roh);
 }
 
 /**
@@ -100,9 +113,10 @@ export const teileVon = (m) =>
 export function teilMenge(teil, p) {
   const n = Number(teil.qty) || 1;
   if (!teil.pronacht) return Math.max(1, Math.round(n));
-  const roh = Math.ceil(n * p.naechte) + (Number(teil.plus) || 0);
-  const grenze = Number(teil.cap) || null;
-  return Math.max(1, grenze ? Math.min(roh, grenze) : roh);
+  const roh = aufrunden(n * p.naechte) + (Number(teil.plus) || 0);
+  // Wie bei amount(): eine eingetragene 0 ist eine Grenze, kein fehlender Wert.
+  const grenze = gesetzt(Number(teil.cap)) ? Number(teil.cap) : null;
+  return Math.max(1, gesetzt(grenze) ? Math.min(roh, grenze) : roh);
 }
 
 /**
@@ -140,8 +154,13 @@ export function wantedItems(trip) {
         source: 'auto',
         isContainer: teile.length > 0,
       });
-      for (const teil of teile) {
-        const tid = `${id}#t:${teil.label}`;
+      /*
+       * Die ID eines Teils hängt an seiner Stelle im Behälter, nicht an seiner
+       * Bezeichnung. Zwei gleichnamige Teile fielen sonst still zu einer Zeile
+       * zusammen, und ein umbenanntes Teil verlor sein Häkchen.
+       */
+      teile.forEach((teil, idx) => {
+        const tid = `${id}#t${idx}`;
         wanted.set(tid, {
           id: tid,
           masterId: m.id,
@@ -154,7 +173,7 @@ export function wantedItems(trip) {
           source: 'auto',
           isContainer: false,
         });
-      }
+      });
     }
   }
   return wanted;
@@ -177,7 +196,7 @@ export function regenerate(trip, now = Date.now()) {
   let removed = 0;
 
   for (const [id, w] of wanted) {
-    if (dismissed[id]) continue;
+    if (dismissed[id]?.weg === true || dismissed[id] === true) continue;
     const cur = items[id];
     if (!cur) {
       items[id] = { ...w, packed: false, deleted: false, updatedAt: now };

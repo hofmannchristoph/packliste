@@ -95,3 +95,28 @@ test('die alte Kurzform who landet in wer statt ins Leere', async () => {
   const id3 = store.addMasterItem({ label: 'Karte', category: 'ausruestung' });
   assert.deepEqual(store.state.data.master[id3].wer, [], 'ohne Angabe bleibt es gemeinsam');
 });
+
+test('unsinnige Zahlen werden bemängelt statt übernommen', () => {
+  const r = leseTabelle(
+    T([
+      ['Bereich', 'Gegenstand', 'Anzahl', 'Max', 'Ab Nächten'],
+      ['Kleidung', 'Socken', '-3', '', ''],
+      ['Kleidung', 'Hose', '', '9999', ''],
+      ['Kleidung', 'Jacke', '', '', 'viele'],
+    ]),
+    OPT
+  );
+  assert.equal(r.fehler.length, 3, `erwartet 3 Fehler, waren ${r.fehler.length}: ${r.fehler}`);
+});
+
+test('eine 0 als Obergrenze überlebt den Import', () => {
+  const r = leseTabelle(T([['Bereich', 'Gegenstand', 'Max'], ['Kleidung', 'Hut', '0']]), OPT);
+  assert.deepEqual(r.fehler, []);
+  assert.equal(Object.values(r.master)[0].cap, 0, '0 darf nicht zu null werden');
+});
+
+test('ein Schlüssel mit Sonderzeichen wird abgelehnt', () => {
+  const r = leseTabelle(T([['Schlüssel', 'Bereich', 'Gegenstand'], ['__proto__', 'Kleidung', 'Hut']]), OPT);
+  assert.equal(r.fehler.length, 1);
+  assert.match(r.fehler[0], /nicht zulässig|unerlaubte Zeichen/);
+});
