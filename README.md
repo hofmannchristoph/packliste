@@ -264,6 +264,7 @@ Zeichendauer stehen bewusst nicht darin; dafür braucht es einen echten Browser.
 | `src/icons.js` | Strich-Icons als inline SVG |
 | `src/generator.js` | Stammliste + Angaben → Liste, inkl. Zusammenführen mit dem bestehenden Stand |
 | `src/store.js` | Zustand, localStorage, Merge-Logik für den Sync |
+| `KALIBRIERUNG.md` | Warum die Mengen und Bedingungen so stehen, wie sie stehen – vor jeder Überarbeitung der Strategie lesen |
 | `src/liste.js` | Welche Zeilen sichtbar sind und wie sie gruppiert werden – ohne DOM, damit die Zusicherung „jede gezählte Zeile wird gezeigt" prüfbar bleibt |
 | `src/tabelle.js` | Stammliste als Tabelle aus- und einlesen |
 | `src/sync.js` | Supabase mit Realtime |
