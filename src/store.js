@@ -729,6 +729,17 @@ export function stelleStammlisteWiederHer(vorher) {
   emit();
 }
 
+/** Den aktuellen Stand von Stammliste, Bereichen und Aktivitäten festhalten. */
+export function stammlisteSichern() {
+  return JSON.parse(
+    JSON.stringify({
+      master: state.data.master,
+      bereiche: state.data.bereiche,
+      aktivitaeten: state.data.aktivitaeten,
+    })
+  );
+}
+
 export function resetMaster() {
   state.data.master = seedMaster();
   state.data.masterUpdatedAt = Date.now();

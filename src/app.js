@@ -127,7 +127,36 @@ function toast(msg, aktion = null, ms = aktion ? 5000 : 2400) {
     aktion.fn();
   });
   clearTimeout(toast._t);
-  toast._t = setTimeout(() => (el.hidden = true), ms);
+  /*
+   * Ein Widerrufen, das nach fester Frist verschwindet, ist für jemanden mit
+   * Sprachausgabe schwer zu erreichen: bis der Text vorgelesen ist, kann der
+   * Knopf schon weg sein. Deshalb ist der Balken eine Live-Region, und ein
+   * Widerrufen bekommt spürbar mehr Zeit.
+   */
+  toast._t = setTimeout(() => (el.hidden = true), aktion ? Math.max(ms, 10000) : ms);
+}
+
+/**
+ * Ein Speicherproblem gehört auf den Bildschirm, nicht in die Konsole.
+ *
+ * Vorher wirkte die App weiter, als sei alles gesichert – und beim nächsten
+ * Start war die Packsitzung weg.
+ */
+function zeigeSpeicherFehler() {
+  const f = store.state.speicherFehler;
+  let el = $('#speicherWarnung');
+  if (!f) {
+    el?.remove();
+    return;
+  }
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'speicherWarnung';
+    el.className = 'speicher-warnung';
+    el.setAttribute('role', 'alert');
+    document.querySelector('.topbar').after(el);
+  }
+  el.textContent = f.text;
 }
 
 /**
@@ -288,8 +317,17 @@ function wischbar(el, onDelete, { bestaetigen = false } = {}) {
  * Bottom Sheet mit fixiertem Aktionsbereich unten – der Hauptknopf bleibt
  * beim Scrollen immer erreichbar.
  */
+/** Woher das Sheet geöffnet wurde – dorthin geht der Fokus zurück. */
+let fokusVorSheet = null;
+
 function openSheet({ body, foot }, wire) {
-  sheet.innerHTML = `<div class="sheet-griff" id="sheetGriff"><span class="sheet-grip"></span></div>
+  fokusVorSheet = document.activeElement;
+  sheet.innerHTML = `<div class="sheet-griff" id="sheetGriff">
+      <span class="sheet-grip"></span>
+      <button class="sheet-schliessen" id="sheetSchliessen" type="button" aria-label="Schliessen">
+        ${icon('close', 18)}
+      </button>
+    </div>
     <div class="sheet-scroll">${body}</div>
     ${foot ? `<div class="sheet-foot">${foot}</div>` : ''}`;
   sheetBackdrop.hidden = false;
@@ -298,7 +336,58 @@ function openSheet({ body, foot }, wire) {
   sheet.style.transform = '';
   griffZiehen();
   wire?.(sheet);
+
+  /*
+   * Ein Sheet ohne Ausweg ist eine Falle. Vorher führte aus vier von zwölf
+   * Sheets nur eine Zeigergeste heraus – Hintergrundklick oder Ziehen am
+   * Griff. Jetzt gibt es überall einen Knopf, Escape schliesst, und der Fokus
+   * bleibt drin, statt hinter dem Sheet weiterzuwandern.
+   */
+  sheet.querySelector('#sheetSchliessen').addEventListener('click', closeSheet);
+  // Die Überschrift benennt den Dialog, damit die Sprachausgabe weiss, wo sie ist.
+  const titel = sheet.querySelector('h3');
+  if (titel) {
+    titel.id = titel.id || 'sheetTitel';
+    sheet.setAttribute('aria-labelledby', titel.id);
+  } else sheet.removeAttribute('aria-labelledby');
+
+  /*
+   * Den Fokus auf das Sheet selbst setzen, nicht auf sein erstes Bedienelement.
+   *
+   * Sonst scrollt das Sheet beim Öffnen an seiner eigenen Überschrift vorbei,
+   * und die Sprachausgabe beginnt mitten im Inhalt statt beim Namen des
+   * Dialogs. Sheets, die bewusst ein Feld anspringen – etwa der Reisename –,
+   * haben das in ihrem eigenen Code schon getan; das wird nicht überschrieben.
+   */
+  if (!sheet.contains(document.activeElement)) {
+    sheet.tabIndex = -1;
+    sheet.focus({ preventScroll: true });
+  }
 }
+
+/** Fokus im Sheet halten und mit Escape hinaus. */
+function sheetTasten(e) {
+  if (sheetBackdrop.hidden) return;
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    closeSheet();
+    return;
+  }
+  if (e.key !== 'Tab') return;
+  const ziele = [...sheet.querySelectorAll('a[href], button, input, textarea, select, [tabindex]')].filter(
+    (el) => !el.disabled && el.tabIndex !== -1 && el.offsetParent !== null
+  );
+  if (!ziele.length) return;
+  const [erstes, letztes] = [ziele[0], ziele[ziele.length - 1]];
+  if (e.shiftKey && document.activeElement === erstes) {
+    e.preventDefault();
+    letztes.focus();
+  } else if (!e.shiftKey && document.activeElement === letztes) {
+    e.preventDefault();
+    erstes.focus();
+  }
+}
+document.addEventListener('keydown', sheetTasten);
 
 /**
  * Am Griff nach unten ziehen schliesst das Sheet. Der Griff sieht wie ein
@@ -351,6 +440,9 @@ function closeSheet() {
   sheet.innerHTML = '';
   sheet.style.transform = '';
   document.body.style.overflow = '';
+  // Zurück, woher man kam – sonst beginnt die Tastaturbedienung wieder von vorn.
+  if (fokusVorSheet?.isConnected) fokusVorSheet.focus?.();
+  fokusVorSheet = null;
 }
 
 function confirmSheet({ titel, text, knopf, gefahr = true }, onJa) {
@@ -452,6 +544,7 @@ function bindMulti(root, sel, attr, obj, key) {
 // ---------------------------------------------------------------------------
 
 function render() {
+  zeigeSpeicherFehler();
   try {
     renderInner();
   } catch (err) {
@@ -1566,9 +1659,15 @@ function renderStammliste() {
         knopf: 'Ja, zurücksetzen',
       },
       () => {
+        // Widerrufen wie beim Tabellen-Import – der Nachbarweg konnte es längst.
+        const vorher = store.stammlisteSichern();
         store.resetMaster();
         closeSheet();
-        toast('Stammliste zurückgesetzt');
+        toast(
+          'Stammliste zurückgesetzt',
+          { text: 'Widerrufen', fn: () => store.stelleStammlisteWiederHer(vorher) },
+          12000
+        );
       }
     )
   );
@@ -2259,16 +2358,37 @@ function renderSync() {
       toast('Code kopiert');
     }
   });
-  view.querySelector('#sJoinBtn').addEventListener('click', async () => {
+  view.querySelector('#sJoinBtn').addEventListener('click', () => {
     const code = view.querySelector('#sJoin').value.trim();
     if (!code) return;
-    try {
-      const anzahl = await sync.joinHousehold(code);
-      toast(`Übernommen: ${anzahl} ${anzahl === 1 ? 'Reise' : 'Reisen'}`);
-      setTab('reisen');
-    } catch (err) {
-      toast(String(err?.message ?? err));
-    }
+    const eigene = Object.values(store.state.data.master).filter((m) => !m.deleted).length;
+    /*
+     * Beitreten ersetzt die eigene Stammliste – das ist Absicht, stand aber
+     * nirgends. Der Hinweistext daneben sprach nur von Code und Reisen, und
+     * einen Rückweg gab es nicht.
+     */
+    confirmSheet(
+      {
+        titel: 'Diesem Haushalt beitreten?',
+        text: `Die Stammliste dieses Geräts (${eigene} Einträge) samt Bereichen und Aktivitäten wird durch die des Haushalts ersetzt. Deine Reisen bleiben.`,
+        knopf: 'Beitreten',
+      },
+      async () => {
+        const vorher = store.stammlisteSichern();
+        closeSheet();
+        try {
+          const anzahl = await sync.joinHousehold(code);
+          toast(
+            `Übernommen: ${anzahl} ${anzahl === 1 ? 'Reise' : 'Reisen'}`,
+            { text: 'Widerrufen', fn: () => store.stelleStammlisteWiederHer(vorher) },
+            12000
+          );
+          setTab('reisen');
+        } catch (err) {
+          toast(String(err?.message ?? err));
+        }
+      }
+    );
   });
 }
 

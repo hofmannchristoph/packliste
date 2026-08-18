@@ -5,7 +5,9 @@
  * den Namen dieses Caches aus. Bei jeder Veröffentlichung hochzählen.
  */
 
-const VERSION = 'packliste-v23';
+const VERSION = 'packliste-v24';
+/** So lange darf das Netz brauchen, bevor der Cache einspringt. */
+const NETZ_FRIST_MS = 2000;
 const SHELL = [
   './',
   'index.html',
@@ -61,19 +63,41 @@ self.addEventListener('fetch', (event) => {
    * die zwei Leute gleichzeitig benutzen, ist Aktualität wichtiger.
    */
   event.respondWith(
-    fetch(request)
-      .then((res) => {
-        if (res.ok) {
-          const copy = res.clone();
-          caches.open(VERSION).then((cache) => cache.put(request, copy));
+    (async () => {
+      const cached = await caches.match(request);
+      /*
+       * Netz zuerst, aber nur zwei Sekunden lang.
+       *
+       * Ohne Frist wartete der Start bei halb erreichbarem Netz auf das
+       * Zeitlimit des Browsers – im Ferienhaus mit einem Balken also lange,
+       * obwohl die ganze App längst im Cache lag. Antwortet das Netz nicht
+       * rechtzeitig, wird der Cache ausgeliefert; die Antwort aus dem Netz
+       * aktualisiert ihn trotzdem, sobald sie eintrifft.
+       */
+      const ausDemNetz = fetch(request)
+        .then((res) => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(VERSION).then((cache) => cache.put(request, copy));
+          }
+          return res;
+        });
+
+      if (!cached) {
+        try {
+          return await ausDemNetz;
+        } catch {
+          if (request.mode === 'navigate') {
+            const shell = await caches.match('index.html');
+            if (shell) return shell;
+          }
+          return new Response('', { status: 504, statusText: 'Offline' });
         }
-        return res;
-      })
-      .catch(async () => {
-        const cached = await caches.match(request);
-        if (cached) return cached;
-        if (request.mode === 'navigate') return caches.match('index.html');
-        return new Response('', { status: 504, statusText: 'Offline' });
-      })
+      }
+
+      const frist = new Promise((loese) => setTimeout(() => loese(null), NETZ_FRIST_MS));
+      const res = await Promise.race([ausDemNetz.catch(() => null), frist]);
+      return res ?? cached;
+    })()
   );
 });

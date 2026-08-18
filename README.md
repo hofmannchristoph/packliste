@@ -182,9 +182,16 @@ In der Datenbank liegen zwei Arten von Zeilen: eine pro Reise, und eine für den
 
 ### Wie sicher ist das?
 
-Der anon-Key ist für den Browser gedacht, aber öffentlich lesbar, sobald er auf einem Gerät eingegeben ist. Der Schutz liegt im zufälligen 20-stelligen Familien-Code: ohne ihn lässt sich nichts abfragen. Für eine private Packliste ist das angemessen – keine Passwörter oder Kartennummern in die Notizfelder schreiben.
+**Der Familien-Code schützt nicht.** Das stand hier lange anders, und es war falsch. Die Policies erlauben `anon` jedes `select` und `update` ohne Bedingung (`using (true)`); den Code filtert allein der Browser, weil er freiwillig `.eq('id', …)` mitschickt. Wer den anon-Key hat, kann jede Zeile lesen und überschreiben — auch ohne den Code zu kennen.
 
-Strenger geht es mit Supabase **Authentication**: dann die Policies in `schema.sql` von `anon` auf `authenticated` mit `user_id`-Prüfung umstellen.
+Der tatsächliche Schutz ist also nur der Schlüssel. Er liegt im `localStorage` beider Geräte und geht bei jedem Aufruf über die Leitung. Für eine private Packliste zweier Personen ist das eine vertretbare Entscheidung — aber eine bewusste, keine technisch abgesicherte. Keine Passwörter oder Kartennummern in die Notizfelder schreiben.
+
+Zwei Wege, es strenger zu machen:
+
+- **Schlüssel wechseln, wenn nötig.** Im Supabase-Dashboard den anon-Key rotieren; danach greift kein altes Gerät mehr, bis der neue Schlüssel eingetragen ist. Das ist der einzige Widerruf, den es heute gibt.
+- **Den Code echt durchsetzen.** `select` und `update` für `anon` auf `using (false)` setzen und den Zugriff über eine `security definer`-Funktion führen, die den Haushalts-Code als Argument nimmt und nur passende Zeilen liefert. Dann prüft der Server, was heute nur der Client verspricht.
+
+Am strengsten geht es mit Supabase **Authentication**: die Policies von `anon` auf `authenticated` mit `user_id`-Prüfung umstellen.
 
 ## Dateien
 
@@ -197,6 +204,8 @@ Strenger geht es mit Supabase **Authentication**: dann die Policies in `schema.s
 | `src/icons.js` | Strich-Icons als inline SVG |
 | `src/generator.js` | Stammliste + Angaben → Liste, inkl. Zusammenführen mit dem bestehenden Stand |
 | `src/store.js` | Zustand, localStorage, Merge-Logik für den Sync |
+| `src/liste.js` | Welche Zeilen sichtbar sind und wie sie gruppiert werden – ohne DOM, damit die Zusicherung „jede gezählte Zeile wird gezeigt" prüfbar bleibt |
+| `src/tabelle.js` | Stammliste als Tabelle aus- und einlesen |
 | `src/sync.js` | Supabase mit Realtime |
 | `src/app.js` | Oberfläche |
 | `sw.js` | Service Worker: Netzwerk zuerst, Cache als Rückfallebene |
