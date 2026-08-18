@@ -596,11 +596,26 @@ export const LEERER_STAMM_EINTRAG = () => ({
   note: '',
 });
 
+/**
+ * Die alte Kurzform `who` auf `wer` bringen.
+ *
+ * Drei Stellen legen Stammlisten-Einträge an, und eine reichte die Person im
+ * längst abgelösten Feld `who` herein. Da `LEERER_STAMM_EINTRAG()` bereits ein
+ * leeres `wer` setzt, fiel das nirgends auf – der Eintrag wurde still zum
+ * gemeinsamen. Die Übersetzung gehört deshalb hierher, an den Schreibrand,
+ * statt an jede Aufrufstelle.
+ */
+function mitWer(patch = {}) {
+  if (Array.isArray(patch.wer) || patch.who === undefined) return patch;
+  const { who, ...rest } = patch;
+  return { ...rest, wer: WER_AUS_WHO[who] ?? (who ? [who] : []) };
+}
+
 export function addMasterItem(patch) {
   const id = `m:eigen.${randomId(8)}`;
   state.data.master[id] = {
     ...LEERER_STAMM_EINTRAG(),
-    ...patch,
+    ...mitWer(patch),
     id,
     deleted: false,
     updatedAt: Date.now(),
@@ -614,7 +629,7 @@ export function addMasterItem(patch) {
 export function patchMasterItem(id, patch) {
   const cur = state.data.master[id];
   if (!cur) return;
-  state.data.master[id] = { ...cur, ...patch, updatedAt: Date.now() };
+  state.data.master[id] = { ...cur, ...mitWer(patch), updatedAt: Date.now() };
   state.data.masterUpdatedAt = Date.now();
   persist();
   emit();

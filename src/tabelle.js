@@ -368,7 +368,22 @@ function personen(zelle, fehler, zeilenNr, spalte = 'Für wen') {
   return [...new Set(out)];
 }
 
-const slug = (s) => norm(s).slice(0, 24) || 'x';
+/**
+ * Schlüssel aus einer Bezeichnung.
+ *
+ * Gekürzt wird, damit Schlüssel lesbar bleiben – aber zwei Bereiche, die sich
+ * erst nach der Kürzung unterscheiden, bekamen vorher denselben und fielen
+ * beim Übernehmen still zu einem zusammen. Deshalb hängt bei längeren
+ * Bezeichnungen ein kurzer Abdruck des Ganzen an.
+ */
+const slug = (s) => {
+  const n = norm(s);
+  if (!n) return 'x';
+  if (n.length <= 24) return n;
+  let h = 0;
+  for (let i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) >>> 0;
+  return `${n.slice(0, 24)}${h.toString(36)}`;
+};
 
 /**
  * Eine Tabelle in eine Stammliste verwandeln.
@@ -440,12 +455,30 @@ export function leseTabelle(text, { bereiche = [], aktivitaeten = [] } = {}) {
   const master = {};
   const reihenfolge = [];
   let letzterEintrag = null;
+  /*
+   * Teile, deren Behälter erst später kommt, werden zurückgestellt.
+   *
+   * Der Export schreibt bewusst den Schlüssel des Behälters in jede Teilzeile,
+   * damit ein Sortieren in Excel die Zuordnung nicht zerreisst. Ohne diesen
+   * zweiten Durchgang hätte das Versprechen nur rückwärts gehalten.
+   */
+  const nachtrag = [];
 
   for (let r = kopfNr + 1; r < zeilen.length; r++) {
     const zeilenNr = r + 1; // wie in Excel gezählt
     const reihe = zeilen[r];
     const label = zelle(reihe, 'gegenstand');
-    if (!label) continue;
+    if (!label) {
+      /*
+       * Eine ganz leere Zeile ist Absicht, eine mit Schlüssel oder Bereich aber
+       * fast immer ein Versehen – in einem Blatt mit 350 Zeilen löschte ein
+       * versehentlich geleerter Name den Eintrag lautlos.
+       */
+      if (zelle(reihe, 'schluessel') || zelle(reihe, 'bereich') || zelle(reihe, 'teilvon')) {
+        fehler.push(`Zeile ${zeilenNr}: kein Gegenstand angegeben. Zeile ganz leeren, um sie zu entfernen.`);
+      }
+      continue;
+    }
 
     const teilVon = zelle(reihe, 'teilvon');
     const istTeil = Boolean(teilVon);
@@ -469,6 +502,11 @@ export function leseTabelle(text, { bereiche = [], aktivitaeten = [] } = {}) {
         ? letzterEintrag
         : master[teilVon] ?? Object.values(master).find((e) => norm(e.label) === norm(teilVon));
       if (!ziel) {
+        // »x« meint die Zeile darüber; alles andere kann noch kommen.
+        if (!istJa(teilVon)) {
+          nachtrag.push({ zeilenNr, label, teilVon, gemeinsam, pronacht: istJa(zelle(reihe, 'pronacht')) });
+          continue;
+        }
         fehler.push(`Zeile ${zeilenNr}: »${label}« soll Teil von »${teilVon}« sein – das gibt es hier nicht.`);
         continue;
       }
@@ -508,6 +546,19 @@ export function leseTabelle(text, { bereiche = [], aktivitaeten = [] } = {}) {
     master[schluessel] = eintrag;
     reihenfolge.push(schluessel);
     letzterEintrag = eintrag;
+  }
+
+  // Zweiter Durchgang für Teile, deren Behälter erst weiter unten stand.
+  for (const n of nachtrag) {
+    const ziel =
+      master[n.teilVon] ?? Object.values(master).find((e) => norm(e.label) === norm(n.teilVon));
+    if (!ziel) {
+      fehler.push(
+        `Zeile ${n.zeilenNr}: »${n.label}« soll Teil von »${n.teilVon}« sein – das gibt es hier nicht.`
+      );
+      continue;
+    }
+    ziel.teile.push({ ...n.gemeinsam, pronacht: n.pronacht });
   }
 
   if (!Object.keys(master).length && !fehler.length) fehler.push('Keine einzige Zeile mit einem Gegenstand gefunden.');
