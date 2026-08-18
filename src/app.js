@@ -26,6 +26,12 @@ import * as store from './store.js';
 import { beschriftung } from './store.js';
 import * as sync from './sync.js';
 import { alsTabelle, leseTabelle } from './tabelle.js';
+import {
+  visibleItems as listeVisibleItems,
+  sichtbareTeile as listeSichtbareTeile,
+  groupItems as listeGroupItems,
+  nachName,
+} from './liste.js';
 
 const $ = (sel) => document.querySelector(sel);
 const view = $('#view');
@@ -772,89 +778,13 @@ function istErledigt(trip, it) {
   return it.isContainer ? containerStand(trip, it).packed : it.packed;
 }
 
-/**
- * Sichtbare Einträge ohne die Teile von Behältern – die hängen an ihrem
- * Behälter und werden beim Zeichnen darunter eingerückt.
+/*
+ * Sichtbarkeit und Gruppierung liegen in src/liste.js – dort ohne DOM prüfbar.
+ * Hier nur die Anbindung an den Filterzustand und die Bereiche dieser Sitzung.
  */
-function visibleItems(trip) {
-  return Object.values(trip.items)
-    .filter((it) => !it.deleted && !it.parentId)
-    .filter((it) => (filter.mode === 'offen' ? !istErledigt(trip, it) : true))
-    .filter((it) => (filter.who === 'alle' ? true : it.assignee === filter.who));
-}
-
-/** Teile eines Behälters, gefiltert wie die Liste selbst. */
-function sichtbareTeile(trip, container) {
-  return kinderVon(trip, container.id)
-    .filter((k) => (filter.mode === 'offen' ? !k.packed : true))
-    .sort((a, b) => beschriftung(a).localeCompare(beschriftung(b), 'de'));
-}
-
-const nachName = (a, b) => beschriftung(a).localeCompare(beschriftung(b), 'de');
-
-/**
- * Zwei Ebenen: aussen die Karte, innen Zwischenüberschriften.
- *
- *   nach Person   → Person   › Bereich   (Christoph › Velo › Trikot kurz)
- *   nach Bereich  → Bereich  › Person
- *
- * Gibt es nur eine Unterebene, entfällt deren Überschrift – sie wäre nur Lärm.
- */
-function groupItems(trip, items) {
-  const groups = [];
-  const push = (id, label, ico, abschnitte) => {
-    const gefuellt = abschnitte.filter((a) => a.items.length);
-    if (!gefuellt.length) return;
-    if (gefuellt.length === 1) gefuellt[0] = { ...gefuellt[0], label: null };
-    groups.push({ id, label, ico, abschnitte: gefuellt, items: gefuellt.flatMap((a) => a.items) });
-  };
-
-  if (filter.group === 'person') {
-    for (const id of resolveParams(trip).mit) {
-      const eigene = items.filter((it) => it.assignee === id);
-      push(
-        id,
-        personName(id),
-        'user',
-        BEREICHE().map((cat) => ({
-          label: cat.label,
-          category: cat.id,
-          assignee: id,
-          items: eigene.filter((it) => it.category === cat.id).sort(nachName),
-        }))
-      );
-    }
-    const shared = items.filter((it) => it.assignee === SHARED);
-    for (const cat of BEREICHE()) {
-      push(`s-${cat.id}`, cat.label, cat.ico, [
-        {
-          label: null,
-          category: cat.id,
-          assignee: SHARED,
-          items: shared.filter((it) => it.category === cat.id).sort(nachName),
-        },
-      ]);
-    }
-    return groups;
-  }
-
-  const reihenfolge = [...resolveParams(trip).mit, SHARED];
-  for (const cat of BEREICHE()) {
-    const drin = items.filter((it) => it.category === cat.id);
-    push(
-      cat.id,
-      cat.label,
-      cat.ico,
-      reihenfolge.map((wer) => ({
-        label: personName(wer),
-        category: cat.id,
-        assignee: wer,
-        items: drin.filter((it) => it.assignee === wer).sort(nachName),
-      }))
-    );
-  }
-  return groups;
-}
+const visibleItems = (trip) => listeVisibleItems(trip, filter, istErledigt);
+const sichtbareTeile = (trip, container) => listeSichtbareTeile(trip, container, filter);
+const groupItems = (trip, items) => listeGroupItems(trip, items, filter, BEREICHE);
 
 function renderListe(trip) {
   const items = visibleItems(trip);
