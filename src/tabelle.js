@@ -217,12 +217,14 @@ export function alsTabelle({ master, bereiche, aktivitaeten }, trenner = '\t') {
   const reihen = [SPALTEN];
   const bOrder = new Map(bereiche.map((b, i) => [b.id, i]));
 
+  // Auch ein beschädigter Eintrag muss noch heraus – der Export ist der Rettungsweg.
+  const text = (e) => (typeof e?.label === 'string' && e.label ? e.label : String(e?.id ?? ''));
   const eintraege = Object.values(master)
-    .filter((e) => !e.deleted)
+    .filter((e) => e && !e.deleted)
     .sort(
       (a, b) =>
         (bOrder.get(a.category) ?? 99) - (bOrder.get(b.category) ?? 99) ||
-        a.label.localeCompare(b.label, 'de')
+        text(a).localeCompare(text(b), 'de')
     );
 
   for (const e of eintraege) {
@@ -230,7 +232,7 @@ export function alsTabelle({ master, bereiche, aktivitaeten }, trenner = '\t') {
     reihen.push([
       e.id,
       bereich,
-      e.label,
+      text(e),
       '',
       werText(e.wer),
       e.qty ?? 1,

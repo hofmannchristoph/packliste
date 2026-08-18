@@ -22,6 +22,7 @@ import {
   haushaltRevision,
   persist,
   emit,
+  emitStatus,
 } from './store.js';
 
 const TABLE = 'packlists';
@@ -41,9 +42,33 @@ let letzteTripSignatur = null;
 
 const tripSignatur = () => Object.keys(state.data.trips).sort().join(',');
 
+/**
+ * Sync-Zustand melden.
+ *
+ * Zwei Dinge sind hier wichtig: Es wird nur gemeldet, wenn sich wirklich etwas
+ * geändert hat, und die Meldung läuft über den Statuskanal statt über `emit()`.
+ * Sonst galt jeder Verbindungsversuch als Datenänderung und stiess den nächsten
+ * Upload an – offline eine Endlosschleife.
+ */
 function setStatus(mode, text, error = null) {
+  const a = state.syncStatus;
+  if (a.mode === mode && a.text === text && a.error === error) return;
   state.syncStatus = { mode, text, error };
-  emit();
+  emitStatus();
+}
+
+/**
+ * Ein Versprechen mit Zeitgrenze.
+ *
+ * Ohne sie hängt ein Aufruf an einem halb erreichbaren Netz beliebig lange und
+ * die App weiss nie, woran sie ist.
+ */
+const MIT_FRIST = 12000;
+function mitFrist(versprechen, ms = MIT_FRIST, was = 'Zeitüberschreitung') {
+  return Promise.race([
+    versprechen,
+    new Promise((_, ab) => setTimeout(() => ab(new Error(was)), ms)),
+  ]);
 }
 
 export function isConfigured() {
@@ -71,7 +96,7 @@ export async function connect() {
     return false;
   }
   try {
-    await pullAll();
+    await mitFrist(pullAll(), MIT_FRIST, 'Abrufen dauerte zu lange');
   } catch (err) {
     setStatus('error', 'Abrufen fehlgeschlagen', String(err?.message ?? err));
     return false;
@@ -89,11 +114,17 @@ export function disconnect() {
   client = null;
   pushedRev.clear();
   letzteTripSignatur = null;
+  clearTimeout(kanalTimer);
+  neuversuche = 0;
   setStatus('local', 'Nur auf diesem Gerät');
 }
 
+let neuversuche = 0;
+let kanalTimer = null;
+
 function subscribeRealtime() {
   if (!client) return;
+  clearTimeout(kanalTimer);
   if (channel) client.removeChannel(channel);
   channel = client
     .channel('packlists-live')
@@ -101,9 +132,20 @@ function subscribeRealtime() {
       if (payload.new?.data) applyRemote(payload.new.data);
     })
     .subscribe((status) => {
-      if (status === 'SUBSCRIBED') setStatus('live', 'Live verbunden');
-      else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+      if (status === 'SUBSCRIBED') {
+        neuversuche = 0;
+        setStatus('live', 'Live verbunden');
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
         setStatus('error', 'Verbindung unterbrochen');
+        // Von allein kommt der Kanal nicht zurück – mit wachsendem Abstand erneut.
+        if (neuversuche < 5) {
+          const wartezeit = Math.min(30000, 1000 * 2 ** neuversuche);
+          neuversuche++;
+          clearTimeout(kanalTimer);
+          kanalTimer = setTimeout(() => {
+            if (client && navigator.onLine) subscribeRealtime();
+          }, wartezeit);
+        }
       }
     });
 }
@@ -189,15 +231,17 @@ export async function joinHousehold(code) {
 }
 
 async function upsert(id, payload) {
-  const { error } = await client
-    .from(TABLE)
-    .upsert({ id, data: payload, updated_at: new Date().toISOString() });
+  const { error } = await mitFrist(
+    client.from(TABLE).upsert({ id, data: payload, updated_at: new Date().toISOString() }),
+    MIT_FRIST,
+    'Hochladen dauerte zu lange'
+  );
   if (error) throw error;
 }
 
 /** Stammliste und Reiseverzeichnis hochladen. */
 export function pushHousehold(delay = 600) {
-  if (!isConfigured()) return;
+  if (!isConfigured() || !navigator.onLine) return;
   const id = state.data.householdId;
   clearTimeout(pushTimers.get(id));
   pushTimers.set(
@@ -236,7 +280,7 @@ export function pushHousehold(delay = 600) {
 
 /** Eine Reise hochladen, gebündelt gegen schnelles Abhaken. */
 export function push(tripId, delay = 500) {
-  if (!isConfigured() || !tripId) return;
+  if (!isConfigured() || !tripId || !navigator.onLine) return;
   clearTimeout(pushTimers.get(tripId));
   pushTimers.set(
     tripId,
@@ -272,8 +316,15 @@ export function initAutoSync() {
   window.addEventListener('offline', () => setStatus('offline', 'Offline – wird nachgetragen'));
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && isConfigured()) {
-      if (client) pullAll().catch(() => connect());
-      else connect();
+      if (client) {
+        // Nach der Rückkehr kann der Kanal stillschweigend tot sein.
+        pullAll()
+          .then(() => {
+            neuversuche = 0;
+            subscribeRealtime();
+          })
+          .catch(() => connect());
+      } else connect();
     }
   });
   if (isConfigured()) connect();

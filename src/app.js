@@ -23,6 +23,7 @@ import {
   werVon,
 } from './generator.js';
 import * as store from './store.js';
+import { beschriftung } from './store.js';
 import * as sync from './sync.js';
 import { alsTabelle, leseTabelle } from './tabelle.js';
 
@@ -70,6 +71,15 @@ store.subscribe(() => {
   render();
   sync.pushAll();
 });
+
+/*
+ * Statuswechsel zeichnen nur neu.
+ *
+ * Hier lag die Rückkopplung: Ein gescheiterter Upload meldete den Status, der
+ * Status galt als Datenänderung, und die löste den nächsten Upload aus. Ohne
+ * Verbindung lief das endlos.
+ */
+store.subscribeStatus(() => render());
 
 document.querySelectorAll('.tab').forEach((btn) => {
   const name = TAB_ICONS[btn.dataset.tab];
@@ -777,10 +787,10 @@ function visibleItems(trip) {
 function sichtbareTeile(trip, container) {
   return kinderVon(trip, container.id)
     .filter((k) => (filter.mode === 'offen' ? !k.packed : true))
-    .sort((a, b) => a.label.localeCompare(b.label, 'de'));
+    .sort((a, b) => beschriftung(a).localeCompare(beschriftung(b), 'de'));
 }
 
-const nachName = (a, b) => a.label.localeCompare(b.label, 'de');
+const nachName = (a, b) => beschriftung(a).localeCompare(beschriftung(b), 'de');
 
 /**
  * Zwei Ebenen: aussen die Karte, innen Zwischenüberschriften.
@@ -1144,7 +1154,7 @@ function openItemSheet(trip, itemId) {
  * steht der Inhalt da, mit dem Weg in die Stammliste, wo er gepflegt wird.
  */
 function openBehaelterSheet(trip, it) {
-  const kinder = kinderVon(trip, it.id).sort((a, b) => a.label.localeCompare(b.label, 'de'));
+  const kinder = kinderVon(trip, it.id).sort((a, b) => beschriftung(a).localeCompare(beschriftung(b), 'de'));
   const stand = containerStand(trip, it);
   openSheet(
     {
@@ -1525,7 +1535,7 @@ function renderStammliste() {
   const karten = BEREICHE().map((cat) => {
     const list = gefiltert
       .filter((m) => m.category === cat.id)
-      .sort((a, b) => a.label.localeCompare(b.label, 'de'));
+      .sort((a, b) => beschriftung(a).localeCompare(beschriftung(b), 'de'));
     if (!list.length) return '';
     return `<section class="card">
       <div class="card-head">${iconTile(cat.ico)} ${esc(cat.label)}

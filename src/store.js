@@ -22,6 +22,17 @@ import { seedMaster, teilObjekt } from './seed.js';
 const LS_KEY = 'packliste.state.v3';
 const LS_ALT = 'packliste.state.v2';
 const LS_CONFIG = 'packliste.sync.v1';
+/*
+ * Die Haushalts-ID liegt zusätzlich für sich allein.
+ *
+ * Sie ist der einzige Wert, ohne den sich das Gerät nicht wieder anbinden lässt.
+ * Steckte sie nur im grossen Zustand, würde ein einziger unlesbarer Datensatz
+ * still einen neuen, leeren Haushalt erzeugen – die Daten auf dem Server wären
+ * noch da, aber unerreichbar.
+ */
+const LS_HAUSHALT = 'packliste.haushalt.v1';
+/** Ein unlesbarer Zustand wird hierhin beiseitegelegt, statt überschrieben zu werden. */
+const LS_DEFEKT = 'packliste.state.v3.defekt';
 
 export function randomId(len = 20) {
   const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
@@ -72,7 +83,10 @@ export const state = {
   data: emptyState(),
   config: { url: '', key: '' },
   listeners: new Set(),
+  statusListeners: new Set(),
   syncStatus: { mode: 'local', text: 'Nur auf diesem Gerät', error: null },
+  /** Gesetzt, wenn Lesen oder Schreiben scheitert – die Oberfläche zeigt es an. */
+  speicherFehler: null,
 };
 
 export function subscribe(fn) {
@@ -82,6 +96,29 @@ export function subscribe(fn) {
 
 export function emit() {
   for (const fn of state.listeners) fn();
+}
+
+/*
+ * Statusmeldungen haben einen eigenen Kanal.
+ *
+ * Vorher lief der Sync-Status über `emit()` wie eine Datenänderung. Der einzige
+ * Zuhörer zeichnete daraufhin nicht nur neu, sondern stiess auch einen Upload
+ * an – der ohne Verbindung scheiterte, wieder den Status setzte und damit die
+ * nächste Runde auslöste. Offline lief die App so dauerhaft im Kreis.
+ */
+export function subscribeStatus(fn) {
+  state.statusListeners.add(fn);
+  return () => state.statusListeners.delete(fn);
+}
+
+export function emitStatus() {
+  for (const fn of state.statusListeners) fn();
+}
+
+/** Ein Problem, das der Nutzer sehen muss, statt es nur in der Konsole zu haben. */
+export function setzeSpeicherFehler(art, text) {
+  state.speicherFehler = art ? { art, text } : null;
+  emitStatus();
 }
 
 /**
@@ -130,10 +167,21 @@ function migriere(daten) {
 }
 
 export function load() {
+  // Zuerst die Haushalts-ID: sie muss auch einen unlesbaren Zustand überleben.
+  let haushalt = null;
   try {
-    const raw = localStorage.getItem(LS_KEY) ?? localStorage.getItem(LS_ALT);
+    haushalt = localStorage.getItem(LS_HAUSHALT);
+  } catch {
+    /* Ablage nicht lesbar – dann eben ohne */
+  }
+  if (haushalt) state.data.householdId = haushalt;
+
+  let raw = null;
+  try {
+    raw = localStorage.getItem(LS_KEY) ?? localStorage.getItem(LS_ALT);
     if (raw) {
       state.data = migriere({ ...emptyState(), ...JSON.parse(raw) });
+      if (haushalt) state.data.householdId = haushalt;
       // Eine leere Stammliste wäre eine Sackgasse – dann neu aussäen.
       if (!Object.keys(state.data.master).length) {
         state.data.master = seedMaster();
@@ -141,6 +189,19 @@ export function load() {
       }
     }
   } catch (err) {
+    /*
+     * Den unlesbaren Text beiseitelegen, bevor irgendetwas ihn überschreibt –
+     * er ist womöglich das Einzige, was von den Daten noch übrig ist.
+     */
+    try {
+      if (raw && !localStorage.getItem(LS_DEFEKT)) localStorage.setItem(LS_DEFEKT, raw);
+    } catch {
+      /* kein Platz für die Sicherung – dann wenigstens melden */
+    }
+    state.speicherFehler = {
+      art: 'lesen',
+      text: 'Der gespeicherte Stand war unlesbar und wurde beiseitegelegt.',
+    };
     console.warn('Gespeicherter Zustand konnte nicht gelesen werden', err);
   }
   try {
@@ -155,13 +216,41 @@ export function load() {
 let saveTimer = null;
 export function persist() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
+  saveTimer = setTimeout(schreibe, 120);
+}
+
+/**
+ * Tatsächlich schreiben – und ein Scheitern nach aussen melden.
+ *
+ * Vorher blieb ein volles Speicherkontingent eine Konsolenwarnung: die App
+ * wirkte weiter, als sei alles gesichert, und beim nächsten Start war die
+ * ganze Packsitzung weg. Nach einem Fehlschlag wird ausserdem der alte
+ * Zustandsschlüssel `.v2` freigegeben, der seit der Migration nur Platz belegt.
+ */
+export function schreibe() {
+  try {
+    localStorage.setItem(LS_HAUSHALT, state.data.householdId);
+    localStorage.setItem(LS_KEY, JSON.stringify(state.data));
+    if (state.speicherFehler?.art === 'schreiben') setzeSpeicherFehler(null);
+    return true;
+  } catch (err) {
     try {
-      localStorage.setItem(LS_KEY, JSON.stringify(state.data));
-    } catch (err) {
-      console.warn('Speichern fehlgeschlagen', err);
+      if (localStorage.getItem(LS_ALT)) {
+        localStorage.removeItem(LS_ALT);
+        localStorage.setItem(LS_KEY, JSON.stringify(state.data));
+        setzeSpeicherFehler(null);
+        return true;
+      }
+    } catch {
+      /* auch der zweite Versuch scheitert – unten melden */
     }
-  }, 120);
+    setzeSpeicherFehler(
+      'schreiben',
+      'Der Speicher ist voll. Änderungen werden gerade nicht gesichert – archivierte Reisen löschen schafft Platz.'
+    );
+    console.warn('Speichern fehlgeschlagen', err);
+    return false;
+  }
 }
 
 export function saveConfig(config) {
@@ -350,10 +439,23 @@ export function restoreDismissed(tripId) {
 // Bereiche und Aktivitäten
 // ---------------------------------------------------------------------------
 
+/*
+ * `label` wird notfalls aus der ID abgeleitet.
+ *
+ * Ein einziger Eintrag ohne Bezeichnung hat vorher `bereiche()` geworfen – und
+ * damit sowohl die Ansicht als auch den Tabellen-Export, also ausgerechnet den
+ * Weg, über den man die Daten hätte retten können.
+ */
+export const beschriftung = (e) => (typeof e?.label === 'string' && e.label ? e.label : String(e?.id ?? ''));
+
 const sortiert = (sammlung) =>
   Object.values(sammlung ?? {})
-    .filter((e) => !e.deleted)
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.label.localeCompare(b.label, 'de'));
+    .filter((e) => e && !e.deleted)
+    .sort(
+      (a, b) =>
+        (a.order ?? 0) - (b.order ?? 0) ||
+        beschriftung(a).localeCompare(beschriftung(b), 'de')
+    );
 
 export const bereiche = () => sortiert(state.data.bereiche);
 export const aktivitaeten = () => sortiert(state.data.aktivitaeten);
@@ -624,14 +726,43 @@ export function resetMaster() {
 // ---------------------------------------------------------------------------
 
 /** Zwei Sammlungen von Einträgen verschmelzen, jüngster Zeitstempel gewinnt. */
+/**
+ * Sieht ein Eintrag aus einer fremden Zeile brauchbar aus?
+ *
+ * Was hier durchfällt, wird verworfen statt übernommen. Vorher wanderte eine
+ * unbrauchbare Zeile ungeprüft in den dauerhaften Zustand und liess sich von
+ * innerhalb der App nicht mehr entfernen.
+ */
+export function brauchbar(e) {
+  return Boolean(
+    e &&
+      typeof e === 'object' &&
+      !Array.isArray(e) &&
+      (e.updatedAt === undefined || typeof e.updatedAt === 'number')
+  );
+}
+
+let verworfen = 0;
+/** Wie viele fremde Einträge zuletzt aussortiert wurden (für die Meldung). */
+export const verworfeneEintraege = () => verworfen;
+
 function mergeById(a = {}, b = {}) {
   const out = {};
-  for (const id of new Set([...Object.keys(a), ...Object.keys(b)])) {
-    const x = a[id];
-    const y = b[id];
-    if (!x) out[id] = y;
-    else if (!y) out[id] = x;
-    else out[id] = (y.updatedAt ?? 0) > (x.updatedAt ?? 0) ? y : x;
+  const eigen = a ?? {};
+  const fremd = b ?? {};
+  for (const id of new Set([...Object.keys(eigen), ...Object.keys(fremd)])) {
+    const x = eigen[id];
+    const y = brauchbar(fremd[id]) ? fremd[id] : null;
+    if (fremd[id] && !y) verworfen++;
+    if (!x) {
+      if (y) out[id] = y;
+      continue;
+    }
+    if (!y) {
+      out[id] = x;
+      continue;
+    }
+    out[id] = (y.updatedAt ?? 0) > (x.updatedAt ?? 0) ? y : x;
   }
   return out;
 }
